@@ -1,0 +1,10 @@
+venv/
+models/
+__pycache__/
+# personal footage of his room stays local
+videos/
+clips/
+out/
+refs/
+refs_crops/
+weights/
