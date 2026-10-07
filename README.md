@@ -21,6 +21,23 @@ Register an object once, follow it through the video, remember where it was put 
 | SAM 2 base+, one pass, + look-alike check | 4 | 1 | 0 |
 
 Partial = the pen: tracked while being moved, lost before it was set down.
-The 0.70 cutoff was tuned on this one video, so it needs a fresh video to validate.
+
+## Validation: video 4 (new objects, nothing tuned on it)
+| Object | Truth | Memory says | |
+|---|---|---|---|
+| Remote | moved to the bed | on the bed, 38.0s | ✅ |
+| Hand gripper | moved to the side table | on the side table, 47.1s | ✅ |
+| Yellow stapler | out of the cupboard, onto the table | on the table, 59.8s | ✅ |
+| Steel stapler | (recorder forgot; footage shows the desk by the laptop, ~30s) | episode ends 30.6s, snapshot still in hand at 28.1s | 🟡 |
+| Sunglasses | left → right on the notebook (~24s) | a false episode in the cupboard at 54s (look-alike 0.74 > 0.70) | ❌ |
+
+**3 / 5 correct, 1 partial, 1 wrong.** Lower than video 3 (4/5), as expected for an
+untuned video. The weak link is the look-alike check: CLIP knows "kind of thing",
+not "this exact thing". Next: an instance-level embedding (e.g. DINOv2) or several
+crops per episode, validated on a 5th video.
+
+Fixes found on video 4 (design fixes, not threshold tuning):
+- snapshot = the last clear frame of an episode (where it was left), not the biggest
+- ignore tracks before an object is registered (SAM 2 guesses before its prompt)
 
 Earlier experiments: `memory.py` (YOLO-World), `owl_test*.py` (OWLv2 one-shot), `sam_test.py`.

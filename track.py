@@ -1,6 +1,6 @@
 """Track every registered object through a video in ONE SAM 2 pass.
 
-Each object gets a box on its own close-up frame. Tracking them together means
+Each object gets a box on its own close-up frame (registry/<video>.json). Tracking them together means
 objects compete for pixels, so one object's track can't jump onto another.
 
     python track.py videos/sample3.mp4 [tiny|base_plus]
@@ -27,14 +27,9 @@ MODELS = {  # size -> (config, checkpoint)
     "base_plus": ("configs/sam2.1/sam2.1_hiera_b+.yaml", "sam2.1_hiera_base_plus.pt"),
 }
 
-# Registration: close-up time (s) and box (x1, y1, x2, y2) for video 3.
-REGISTRY = {
-    "bracelet":            (4,  (140, 0, 280, 854)),
-    "steel stapler":       (12, (110, 250, 340, 740)),
-    "red pen":             (14, (180, 30, 330, 770)),
-    "yellow stapler":      (16, (90, 220, 480, 500)),
-    "white deodorant can": (20, (100, 140, 360, 780)),
-}
+def load_registry(video):
+    """registry/<video>.json: object -> [close-up time (s), box (x1, y1, x2, y2)]."""
+    return json.loads((ROOT / "registry" / f"{Path(video).stem}.json").read_text())
 
 
 class LazyFrames:
@@ -67,13 +62,14 @@ def track(video, size="tiny"):
 
     config, ckpt = MODELS[size]
     predictor = build_sam2_video_predictor(config, str(ROOT / "models" / ckpt), device="cuda")
-    names = list(REGISTRY)
+    registry = load_registry(video)
+    names = list(registry)
     tracks = {name: [] for name in names}
 
     with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
         state = predictor.init_state(video_path=str(video), offload_state_to_cpu=True)
         for obj_id, name in enumerate(names):
-            t, box = REGISTRY[name]
+            t, box = registry[name]
             predictor.add_new_points_or_box(state, frame_idx=int(t * FPS), obj_id=obj_id,
                                             box=np.array(box, dtype=np.float32))
         for frame_idx, obj_ids, mask_logits in predictor.propagate_in_video(state):

@@ -10,6 +10,7 @@ episodes worth remembering and writes them as markdown you can open and read:
     python remember.py out/sample3.base_plus.tracks.json
 """
 import json
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -19,7 +20,7 @@ import cv2
 import torch
 from PIL import Image
 
-from track import FPS, REGISTRY, LazyFrames
+from track import FPS, LazyFrames, load_registry
 
 ROOT = Path(__file__).parent
 MEMORY = ROOT / "memory"
@@ -30,10 +31,12 @@ MIN_LOOKALIKE = 0.70  # CLIP similarity to the registration close-up; below = th
                       # tracker drifted onto something else (tuned on video 3 only)
 
 
-def episodes(track):
-    """Group confident frames into episodes, dropping one-off glitches."""
+def episodes(track, registered_at):
+    """Group confident frames into episodes, dropping one-off glitches.
+    Frames before the object was registered are ignored: SAM 2 guesses about
+    an object before its prompt, and you can't remember what you weren't shown."""
     runs = []
-    for p in (p for p in track if p["area"] >= MIN_AREA):
+    for p in (p for p in track if p["area"] >= MIN_AREA and p["time"] >= registered_at):
         if runs and p["frame"] - runs[-1][-1]["frame"] <= MAX_GAP:
             runs[-1].append(p)
         else:
@@ -44,11 +47,11 @@ def episodes(track):
 class Lookalike:
     """Does this crop look like the object as it was registered?"""
 
-    def __init__(self, frames):
+    def __init__(self, frames, registry):
         self.frames = frames
         self.model, self.prep = clip.load("ViT-B/32", device="cuda", download_root=str(ROOT / "models" / "weights" / "clip"))
         self.refs = {}
-        for name, (t, (x1, y1, x2, y2)) in REGISTRY.items():
+        for name, (t, (x1, y1, x2, y2)) in registry.items():
             self.refs[name] = self.embed(frames.raw(int(t * FPS))[y1:y2, x1:x2])
 
     def embed(self, bgr):
@@ -61,6 +64,13 @@ class Lookalike:
         return float(self.embed(self.frames.raw(p["frame"])[y1:y2 + 1, x1:x2 + 1]) @ self.refs[name])
 
 
+def resting_frame(ep):
+    """The last clear frame of an episode: where the object was left, not where
+    it looked biggest (that is usually in your hand)."""
+    big = max(p["area"] for p in ep)
+    return [p for p in ep if p["area"] >= 0.1 * big][-1]
+
+
 def slug(name):
     return name.replace(" ", "-")
 
@@ -68,18 +78,20 @@ def slug(name):
 def main(tracks_file):
     data = json.loads(Path(tracks_file).read_text())
     frames = LazyFrames(data["video"])
-    lookalike = Lookalike(frames)
+    lookalike = Lookalike(frames, load_registry(data["video"]))
+    shutil.rmtree(MEMORY, ignore_errors=True)
     (MEMORY / "snapshots").mkdir(parents=True, exist_ok=True)
     recorded = datetime.fromtimestamp(Path(data["video"]).stat().st_mtime).strftime("%Y-%m-%d %H:%M")
     index = []
 
+    registry = load_registry(data["video"])
     for name, track in data["tracks"].items():
-        eps = [ep for ep in episodes(track)
+        eps = [ep for ep in episodes(track, registry[name][0])
                if lookalike.score(name, max(ep, key=lambda p: p["area"])) >= MIN_LOOKALIKE]
         lines = [f"---\nname: {name}\nsource: {data['video']}\nrecorded: {recorded}\n---\n",
                  f"# {name}\n", "## Episodes (newest first)\n"]
         for i, ep in enumerate(reversed(eps)):
-            best = max(ep, key=lambda p: p["area"])   # clearest view of the episode
+            best = resting_frame(ep)
             img = frames.raw(best["frame"])
             x1, y1, x2, y2 = best["box"]
             cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 255), 3)
