@@ -1,0 +1,11 @@
+# PyTorch with CUDA: install first, matching your driver (https://pytorch.org)
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+opencv-python
+numpy
+pillow
+ftfy
+regex
+git+https://github.com/ultralytics/CLIP.git
+# SAM 2 (official). If this fails: pip install wheel setuptools, then
+#   SAM2_BUILD_CUDA=0 pip install --no-build-isolation git+https://github.com/facebookresearch/sam2.git
+git+https://github.com/facebookresearch/sam2.git

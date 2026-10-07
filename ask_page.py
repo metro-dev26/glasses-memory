@@ -6,6 +6,7 @@ the page because browsers block file:// pages from reading other files.
     python ask_page.py
 """
 import json
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).parent
@@ -52,7 +53,7 @@ PAGE = """<!doctype html>
 </main>
 <script>
 const MEMORY = __MEMORY__;
-const VIDEO = "../" + MEMORY.video;
+const VIDEO = MEMORY.video_src;
 const STOP = new Set("where where's wheres is are my the a did i leave left put keep kept last see seen saw".split(" "));
 const names = Object.keys(MEMORY.objects);
 
@@ -96,7 +97,14 @@ document.getElementById("f").onsubmit = e => { e.preventDefault(); answer(q.valu
 </script></body></html>
 """
 
-if __name__ == "__main__":
+def build():
     memory = json.loads((MEMORY / "memory.json").read_text())
-    (MEMORY / "index.html").write_text(PAGE.replace("__MEMORY__", json.dumps(memory)))
-    print(f"wrote {MEMORY / 'index.html'}")
+    memory["video_src"] = Path(os.path.relpath(Path(memory["video"]).resolve(), MEMORY)).as_posix()
+    page = MEMORY / "index.html"
+    page.write_text(PAGE.replace("__MEMORY__", json.dumps(memory)))
+    print(f"wrote {page}")
+    return page
+
+
+if __name__ == "__main__":
+    build()

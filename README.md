@@ -4,8 +4,30 @@
 
 Register an object once, follow it through the video, remember where it was put down.
 
+![Asking "where did i leave my remote?": the answer, where it was left, and the moment it was put down](docs/demo.gif)
+
+## Try it yourself
+Needs an NVIDIA GPU (4 GB is enough) and Python 3.11.
+
+```bash
+git clone https://github.com/Abhinav-pallathh/glasses-memory && cd glasses-memory
+python -m venv venv && source venv/bin/activate
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+pip install -r requirements.txt
+./setup.sh                                  # downloads the SAM 2.1 checkpoints
+python run.py path/to/your_video.mp4
+```
+
+1. Record a walk around your room: show each object up close first, then move things.
+2. `run.py` opens a window. Press `d` / `a` to scrub to an object's close-up, `space` to drag a box
+   around it, then type its name in the terminal. Repeat for each object, `q` to save.
+3. Wait for tracking: about 5 min per 1 min of video on an RTX 3050 (`python run.py video.mp4 tiny` is faster, less accurate).
+4. Your browser opens the ask page: "where's my remote?".
+
+Everything stays on your machine. The readable memory is in `memory/MEMORY.md`.
+
 ## How it works
-1. **Register**: one box per object on its close-up frame (`REGISTRY` in `track.py`).
+1. **Register** (`register.py`): drag one box per object on a close-up frame.
 2. **Track** (`track.py`): one SAM 2 pass follows every object together, at 10 fps.
 3. **Sleep** (`remember.py`): turn per-frame tracks into episodes. Drop glitches (<0.3 s)
    and episodes that don't look like the registered object (CLIP similarity < 0.70).

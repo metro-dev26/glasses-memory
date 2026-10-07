@@ -111,7 +111,7 @@ def main(tracks_file):
         if eps:
             last = eps[-1]
             index.append(f"- [{name}]({slug(name)}.md) — last seen {last[0]['time']:.1f}–{last[-1]['time']:.1f}s "
-                         f"into the {recorded} recording ({len(eps)} episodes)")
+                         f"into the {recorded} recording ({len(eps)} episode{'s' * (len(eps) != 1)})")
         else:
             index.append(f"- [{name}]({slug(name)}.md) — never seen clearly")
 
