@@ -83,6 +83,7 @@ def main(tracks_file):
     (MEMORY / "snapshots").mkdir(parents=True, exist_ok=True)
     recorded = datetime.fromtimestamp(Path(data["video"]).stat().st_mtime).strftime("%Y-%m-%d %H:%M")
     index = []
+    facts = {"video": data["video"], "recorded": recorded, "objects": {}}
 
     registry = load_registry(data["video"])
     for name, track in data["tracks"].items():
@@ -103,6 +104,10 @@ def main(tracks_file):
             lines.append("- never seen clearly")
         (MEMORY / f"{slug(name)}.md").write_text("\n".join(lines) + "\n")
 
+        facts["objects"][name] = [
+            {"start": ep[0]["time"], "end": ep[-1]["time"], "rest": resting_frame(ep)["time"],
+             "snapshot": f"snapshots/{slug(name)}-{resting_frame(ep)['time']:.1f}s.jpg"}
+            for ep in reversed(eps)]
         if eps:
             last = eps[-1]
             index.append(f"- [{name}]({slug(name)}.md) — last seen {last[0]['time']:.1f}–{last[-1]['time']:.1f}s "
@@ -113,6 +118,7 @@ def main(tracks_file):
     (MEMORY / "MEMORY.md").write_text(
         "# Object memory\n\nLast known, not current: things may have moved since the recording.\n\n"
         + "\n".join(index) + "\n")
+    (MEMORY / "memory.json").write_text(json.dumps(facts, indent=1))
     print((MEMORY / "MEMORY.md").read_text())
 
 
