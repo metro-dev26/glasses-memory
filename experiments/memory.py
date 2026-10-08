@@ -6,8 +6,8 @@ Two steps:
   ask    - answer "where did I last see X?" from the saved index, rejecting
            false sightings that don't look like the object or don't persist.
 
-    python memory.py index videos/sample2.mp4 "yellow stapler" "blue pen"
-    python memory.py ask videos/sample2.mp4 "yellow stapler"
+    python experiments/memory.py index videos/sample2.mp4 "yellow stapler" "blue pen"
+    python experiments/memory.py ask videos/sample2.mp4 "yellow stapler"
 
 If refs/<label>.jpg exists (a close-up photo of YOUR object), it becomes the
 reference appearance. Otherwise we fall back to the detector's own top crops.
@@ -23,7 +23,7 @@ import torch
 from PIL import Image
 from ultralytics import YOLOWorld
 
-ROOT = Path(__file__).parent
+ROOT = Path(__file__).parent.parent
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 FRAME_STEP = 3        # look at every 3rd frame: 30 fps video -> 10 checks/sec

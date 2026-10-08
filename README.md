@@ -39,7 +39,7 @@ Everything stays on your machine. The readable memory is in `memory/MEMORY.md`.
 ## Results on test video 3 (5 moved objects, ground truth from the recorder)
 | Approach | Correct | Partial | Wrong |
 |---|---|---|---|
-| YOLO-World + CLIP filter (`memory.py`) | 0 | 2 | 3 |
+| YOLO-World + CLIP filter (`experiments/memory.py`) | 0 | 2 | 3 |
 | SAM 2 tiny, one object at a time | 3 | 1 | 1 |
 | SAM 2 tiny, all objects in one pass (6x faster) | 3 | 1 | 1 |
 | SAM 2 base+, one pass, + look-alike check | 4 | 1 | 0 |
@@ -66,4 +66,4 @@ Fixes found on video 4 (design fixes, not threshold tuning):
 
 New here? Read [docs/HANDBOOK.md](docs/HANDBOOK.md): every file, every design choice, and the rules.
 
-Earlier experiments: `memory.py` (YOLO-World), `owl_test*.py` (OWLv2 one-shot), `sam_test.py`.
+Earlier experiments (YOLO-World, OWLv2, SAM 2 one object at a time) live in [`experiments/`](experiments/).

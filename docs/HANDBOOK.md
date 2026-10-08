@@ -23,15 +23,15 @@ the camera last saw it, not where it is now.
 Each step fixed a failure of the previous one. Knowing this is the best way to understand
 the code, and it is what an interviewer will ask about.
 
-1. **YOLO-World, per frame** (`memory.py`). An open-vocabulary detector: you type
+1. **YOLO-World, per frame** (`experiments/memory.py`). An open-vocabulary detector: you type
    "yellow stapler", it finds yellow staplers in each frame. Failed: on video 3 it got
    0 of 5 objects right. Problem: it looks at each frame on its own. When the object is
    blurry, half-hidden, or at an odd angle for a few frames, it is simply missed, and it also
    fires on other yellow things. It knows *kinds* of things, not *your* thing.
-2. **OWLv2 image-guided search** (`owl_test.py`, `owl_test2.py`). Give it a crop of your
+2. **OWLv2 image-guided search** (`experiments/owl_test*.py`). Give it a crop of your
    object, it searches for that crop. Weak: scores barely separated the real object from
    lookalikes. (Note: its sigmoid scores all came out as 1.00, so we had to read the raw logits.)
-3. **SAM 2 video tracking** (`sam_test.py`, then `track.py`). The big jump. SAM 2 (Meta's
+3. **SAM 2 video tracking** (`experiments/sam_test.py`, then `track.py`). The big jump. SAM 2 (Meta's
    Segment Anything 2) takes one box on one frame and follows that exact object through the
    video, using a *memory* of what it looked like in earlier frames. Continuity is the point:
    it doesn't re-decide from scratch on each frame. Video 3 went to 3/5.
@@ -174,9 +174,10 @@ HTML** because browsers block a `file://` page from reading other local files.
 register (only if there's no registry) -> track -> free GPU memory -> remember -> ask page
 -> open the browser.
 
-### Old experiments (kept on purpose, they are the story)
+### `experiments/`: old approaches (kept on purpose, they are the story)
 `memory.py` (YOLO-World + CLIP), `owl_test.py` / `owl_test2.py` (OWLv2), `sam_test.py`
-(SAM 2 via ultralytics, one object at a time).
+(SAM 2 via ultralytics, one object at a time). Run them from the repo root; they need
+`pip install ultralytics transformers`, which the pipeline does not.
 
 ### Data folders (all gitignored)
 `videos/` footage · `out/` tracks JSON · `memory/` generated memory · `models/` checkpoints.
