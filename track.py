@@ -88,6 +88,7 @@ def track(video, size="tiny"):
                 print(f"  frame {frame_idx}/{len(frames)}", flush=True)
 
     out = ROOT / "out" / f"{Path(video).stem}.{size}.tracks.json"
+    out.parent.mkdir(exist_ok=True)
     out.write_text(json.dumps({"video": str(video), "fps": FPS, "tracks": tracks}))
     print(f"wrote {out}")
 
