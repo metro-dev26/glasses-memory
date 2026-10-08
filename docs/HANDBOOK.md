@@ -56,7 +56,7 @@ Needs an NVIDIA GPU (developed on an RTX 3050 with 4 GB VRAM) and **Python 3.11*
 (newer Pythons lack the torch wheels).
 
 ```bash
-git clone https://github.com/Abhinav-pallathh/glasses-memory && cd glasses-memory
+git clone https://github.com/metro-dev26/glasses-memory && cd glasses-memory
 python3.11 -m venv venv && source venv/bin/activate
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt

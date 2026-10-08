@@ -4,13 +4,15 @@
 
 Register an object once, follow it through the video, remember where it was put down.
 
+Built jointly by Sujan Sekar and Abhinav Pallath.
+
 ![Asking "where did i leave my remote?": the answer, where it was left, and the moment it was put down](docs/demo.gif)
 
 ## Try it yourself
 Needs an NVIDIA GPU (4 GB is enough) and Python 3.11.
 
 ```bash
-git clone https://github.com/Abhinav-pallathh/glasses-memory && cd glasses-memory
+git clone https://github.com/metro-dev26/glasses-memory && cd glasses-memory
 python -m venv venv && source venv/bin/activate
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 pip install -r requirements.txt
