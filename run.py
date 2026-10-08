@@ -30,4 +30,6 @@ def main(video, size="base_plus"):
 
 
 if __name__ == "__main__":
+    if not 2 <= len(sys.argv) <= 3:
+        sys.exit(__doc__)
     main(*sys.argv[1:])

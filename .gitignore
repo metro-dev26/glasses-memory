@@ -1,7 +1,7 @@
 venv/
 models/
 __pycache__/
-# personal footage of his room stays local
+# personal footage stays local
 videos/
 clips/
 out/
