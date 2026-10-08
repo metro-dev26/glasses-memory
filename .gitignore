@@ -9,3 +9,8 @@ refs/
 refs_crops/
 weights/
 memory/
+
+# local assistant notes, never committed
+CLAUDE.md
+AGENTS.md
+.claude/

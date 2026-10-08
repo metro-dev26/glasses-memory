@@ -62,4 +62,6 @@ Fixes found on video 4 (design fixes, not threshold tuning):
 - snapshot = the last clear frame of an episode (where it was left), not the biggest
 - ignore tracks before an object is registered (SAM 2 guesses before its prompt)
 
+New here? Read [docs/HANDBOOK.md](docs/HANDBOOK.md): every file, every design choice, and the rules.
+
 Earlier experiments: `memory.py` (YOLO-World), `owl_test*.py` (OWLv2 one-shot), `sam_test.py`.
