@@ -21,6 +21,7 @@ import time
 from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import cv2
 import numpy as np
@@ -174,8 +175,20 @@ app = FastAPI(lifespan=lifespan)
 
 # --- websockets ------------------------------------------------------------------
 
+def same_origin(ws: WebSocket):
+    """Browsers send any page's websocket to any host, so without this check a
+    web page open on the laptop could watch the camera or forget everything
+    through localhost. A browser always sends Origin; it must be this server.
+    Clients with no Origin are not browsers, so no other page can drive them."""
+    origin = ws.headers.get("origin")
+    return origin is None or urlsplit(origin).netloc == ws.headers.get("host")
+
+
 @app.websocket("/ws/camera")
 async def ws_camera(ws: WebSocket):
+    if not same_origin(ws):
+        await ws.close(code=1008)
+        return
     await ws.accept()
     last_ack = time.monotonic()
     try:
@@ -191,6 +204,9 @@ async def ws_camera(ws: WebSocket):
 
 @app.websocket("/ws/dashboard")
 async def ws_dashboard(ws: WebSocket):
+    if not same_origin(ws):
+        await ws.close(code=1008)
+        return
     await ws.accept()
     live.dashboards.add(ws)
     await ws.send_text(json.dumps(memory_message()))
