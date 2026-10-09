@@ -34,8 +34,7 @@ def test_close_call_between_different_objects_is_no_match():
 
 def test_runner_up_that_looks_like_the_winner_does_not_block_the_match():
     stored_twice = unit(1, 0.05)
-    oid, _ = best_match(A, {1: A[None], 2: stored_twice[None]})
-    assert oid in (1, 2)
+    assert best_match(A, {1: A[None], 2: stored_twice[None]})[0] == 1
 
 
 def test_empty_memory():
