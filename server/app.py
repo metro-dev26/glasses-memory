@@ -15,7 +15,9 @@ import argparse
 import asyncio
 import base64
 import json
+import os
 import statistics
+import subprocess
 import threading
 import time
 from collections import deque
@@ -40,10 +42,26 @@ SAVE_EVERY = 10.0        # seconds between memory saves, so a crash loses at mos
 ACK_EVERY = 1.0          # seconds between camera_ack messages to the phone
 VIEW_UPDATE_EVERY = 1.0  # seconds; most often a memory message is sent only because the view changed
 REPORT_EVERY = 30.0
+
+
+
+def tailscale_name():
+    """This machine's MagicDNS name (e.g. laptop.tailnet.ts.net), or None."""
+    try:
+        out = subprocess.run(["tailscale", "status", "--json"], capture_output=True,
+                             text=True, timeout=5).stdout
+        return json.loads(out)["Self"]["DNSName"].rstrip(".") or None
+    except (OSError, ValueError, KeyError, subprocess.TimeoutExpired):
+        return None
+
+
 # Host names the server answers to. A page whose own domain is re-pointed at
-# 127.0.0.1 (DNS rebinding) sends its own name as Host, and is refused here.
-# *.ts.net names are issued by Tailscale, so an outside site cannot use them.
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "::1", "*.ts.net"]      # seconds between latency lines in the server log
+# 127.0.0.1 (DNS rebinding) sends its own name as Host, and is refused. Only
+# this machine's own Tailscale name is accepted, not every *.ts.net name;
+# more can be added as GM_ALLOW_HOSTS=name1,name2.
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "::1", tailscale_name(),
+                 *os.environ.get("GM_ALLOW_HOSTS", "").split(",")]
+ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]      # seconds between latency lines in the server log
 
 
 class Live:
@@ -176,6 +194,8 @@ async def lifespan(_app):
 
 
 app = FastAPI(lifespan=lifespan)
+# Added here, not in __main__, so it is on however the app is started.
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
 
 # --- websockets ------------------------------------------------------------------
@@ -310,13 +330,10 @@ if DIST.exists():
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--allow-host", action="append", default=[],
-                    help="another host name to answer to, e.g. a LAN IP")
     ap.add_argument("--store", default=STORE)
     # localhost only: `tailscale serve` is what makes it reachable, over HTTPS
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
     STORE = args.store
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS + args.allow_host)
     uvicorn.run(app, host=args.host, port=args.port)
