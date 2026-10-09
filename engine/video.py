@@ -17,6 +17,8 @@ def resize(frame, long_side=LONG_SIDE):
 def frames(path, fps=FPS):
     """Yield (time in seconds, BGR frame), sampled at `fps`."""
     cap = cv2.VideoCapture(str(path))
+    if not cap.isOpened() or cap.get(cv2.CAP_PROP_FPS) <= 0:
+        raise ValueError(f"cannot read video: {path}")
     step = max(1, round(cap.get(cv2.CAP_PROP_FPS) / fps))
     n = 0
     while True:
