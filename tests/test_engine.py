@@ -74,3 +74,23 @@ def test_two_second_absence_starts_a_new_sighting(leave_and_return):
     run(leave_and_return, 40)
     remote = next(o for o in leave_and_return.memory.objects.values() if o.label == "remote")
     assert len(remote.sightings) == 2
+
+
+def test_stillness_is_measured_against_the_camera_not_the_screen(tmp_path):
+    """The head turns, so every object slides 5 px a frame; the hand also moves
+    one object 25 px a frame. Only that one is moving."""
+    static = {x: vector(i) for i, x in enumerate((100, 200, 300, 400))}
+    scene = []
+    for i in range(12):
+        objects = [obj(t, "thing", [x + 5 * i, 100, x + 5 * i + 40, 140])
+                   for t, x in enumerate(static, start=1)]
+        objects.append(obj(9, "pen", [500 + 25 * i, 300, 540 + 25 * i, 340]))
+        scene.append(objects)
+    by_x1 = {x + 5 * i: v for x, v in static.items() for i in range(12)}
+    by_x1.update({500 + 25 * i: vector(7) for i in range(12)})
+    engine = Engine(tmp_path, detector=FakeDetector(scene), embedder=FakeEmbedder(by_x1))
+    run(engine, 12)
+    rested = {o.label: o.sightings[-1].rested for o in engine.memory.objects.values() if o.label == "pen"}
+    things = [o.sightings[-1].rested for o in engine.memory.objects.values() if o.label == "thing"]
+    assert rested == {"pen": False}
+    assert things == [True] * 4
