@@ -8,6 +8,13 @@ cd dashboard && npm install && npm run build && cd ..   # the pages it serves
 python -m server.app --store store/live                 # http://localhost:8000
 ```
 
+**Recorded video (the current demo mode):** play a video file through the same
+engine and dashboard, at real speed and 10 fps, as if the phone were sending it:
+
+```bash
+python -m server.app --video videos/x.mp4 --loop       # --loop replays it; objects come back re-identified
+```
+
 - Only the newest camera frame is processed; older ones are dropped, so the
   delay stays at one frame instead of growing into a queue.
 - Memory is saved every 10 s and on shutdown (`Ctrl+C`).
@@ -18,7 +25,10 @@ python -m server.app --store store/live                 # http://localhost:8000
   others with `GM_ALLOW_HOSTS=name1,name2`), and websockets only from its own
   pages: otherwise a web page open on the laptop could reach it through localhost.
 
-## Phone camera over Tailscale (HTTPS)
+## Phone camera over Tailscale (HTTPS), on hold
+
+Live from the phone is paused while we demo on recorded videos; this is kept
+for when it comes back.
 
 Phone browsers only allow the camera on HTTPS. Tailscale gives the laptop an
 HTTPS address inside the tailnet. One-time setup:

@@ -6,6 +6,7 @@
     /, /phone       the built dashboard and camera page (dashboard/dist)
 
     python -m server.app --store store/live          # http://localhost:8000
+    python -m server.app --video videos/x.mp4 --loop  # a recorded video instead of the phone
 
 Only the newest camera frame is ever processed. If the engine is busy when
 frames arrive, the older ones are dropped, so the delay stays at one frame
@@ -35,6 +36,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from engine.ask import embed_text
 from engine.engine import Engine
+from engine.video import FPS, frames
 
 ROOT = Path(__file__).parent.parent
 DIST = ROOT / "dashboard" / "dist"
@@ -85,6 +87,8 @@ class Live:
 
 live: Live = None  # created at startup, after the store path is known
 STORE = "store/live"
+VIDEO = None             # a recorded video to play instead of the phone
+LOOP = False
 
 
 # --- messages ------------------------------------------------------------------
@@ -158,6 +162,25 @@ async def process_loop():
             await broadcast(memory_message())
 
 
+async def video_loop(path, loop):
+    """Play a recorded video into the same path as the phone's frames, at real
+    speed and the phone's 10 fps, so the dashboard cannot tell the difference.
+    Looping replays the same objects, which then come back re-identified."""
+    while True:
+        it = frames(path)
+        next_at = time.monotonic()
+        while (item := await asyncio.to_thread(next, it, None)) is not None:
+            ok, jpeg = cv2.imencode(".jpg", item[1], [cv2.IMWRITE_JPEG_QUALITY, 70])
+            if ok:
+                live.latest = (jpeg.tobytes(), time.perf_counter())
+                live.new_frame.set()
+            next_at += 1 / FPS
+            await asyncio.sleep(max(0.0, next_at - time.monotonic()))
+        if not loop:
+            print(f"[live] end of {path}", flush=True)
+            return
+
+
 async def save_loop():
     while True:
         await asyncio.sleep(SAVE_EVERY)
@@ -187,6 +210,8 @@ async def lifespan(_app):
     # memory is empty, so the embedder is called directly.)
     await asyncio.to_thread(embed_text, ["warm up"])
     tasks = [asyncio.create_task(f()) for f in (process_loop, save_loop, report_loop)]
+    if VIDEO:
+        tasks.append(asyncio.create_task(video_loop(VIDEO, LOOP)))
     yield
     for t in tasks:
         t.cancel()
@@ -334,6 +359,10 @@ if __name__ == "__main__":
     # localhost only: `tailscale serve` is what makes it reachable, over HTTPS
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--video", help="play this recorded video instead of waiting for the phone")
+    ap.add_argument("--loop", action="store_true", help="replay the video when it ends")
     args = ap.parse_args()
-    STORE = args.store
+    if args.video and not Path(args.video).is_file():
+        ap.error(f"no such video: {args.video}")
+    STORE, VIDEO, LOOP = args.store, args.video, args.loop
     uvicorn.run(app, host=args.host, port=args.port)
