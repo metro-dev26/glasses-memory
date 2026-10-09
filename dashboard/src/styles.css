@@ -141,6 +141,12 @@ button.danger-outline { background: transparent; border-color: color-mix(in srgb
 .conn-open { color: var(--new); }
 .conn-connecting { color: var(--moved); }
 .conn-closed { color: #ff8b8e; }
+.ms-clock {
+  position: absolute; right: 12px; bottom: 12px;
+  padding: 6px 12px; border-radius: 6px;
+  background: #fff; color: #000;
+  font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
 .live-msg {
   position: absolute; inset: 0;
   display: grid; place-content: center; gap: 6px; text-align: center;

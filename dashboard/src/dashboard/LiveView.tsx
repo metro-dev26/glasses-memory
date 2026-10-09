@@ -9,6 +9,11 @@ const REID_MS = 2500;      // how long "seen 3m ago" stays on a pill
 const DIM_BELOW = 0.4;     // detections under this confidence are drawn dimmer and dashed
 const STALE_MS = 2000;     // no frame for this long = the camera has stopped
 
+// `/?clock` shows a millisecond clock for measuring glass-to-glass latency:
+// point the phone at this screen, and the clock seen inside the video lags
+// the live clock by exactly the end-to-end delay.
+const SHOW_CLOCK = new URLSearchParams(location.search).has("clock");
+
 /** Frames go straight from the socket to the canvas, outside React state:
  *  ten re-renders a second of the whole page would be wasted work. */
 export class FrameBus {
@@ -42,6 +47,7 @@ interface Hud {
 export function LiveView({ bus, conn }: { bus: FrameBus; conn: ConnState }) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const clockEl = useRef<HTMLDivElement>(null);
   const [hud, setHud] = useState<Hud | null>(null);
   const [now, setNow] = useState(Date.now());
 
@@ -106,6 +112,7 @@ export function LiveView({ bus, conn }: { bus: FrameBus; conn: ConnState }) {
 
     const draw = (t: number) => {
       raf = requestAnimationFrame(draw);
+      if (clockEl.current) clockEl.current.textContent = msClock();
       const W = el.width, H = el.height;
       ctx.clearRect(0, 0, W, H);
       if (!image) return;
@@ -139,6 +146,7 @@ export function LiveView({ bus, conn }: { bus: FrameBus; conn: ConnState }) {
   return (
     <div className="live" ref={wrap}>
       <canvas ref={canvas} />
+      {SHOW_CLOCK && <div className="ms-clock mono" ref={clockEl} />}
       <div className="hud mono">
         <div><span>conn</span><b className={`conn-${conn}`}>{conn}</b></div>
         <div><span>fps</span><b>{hud && !stale ? hud.fps.toFixed(1) : "–"}</b></div>
@@ -175,6 +183,12 @@ function nextGlides(old: Map<number, Glide>, dets: Detection[], t: number) {
     next.set(d.track_id, { from, to: d.box, start: t, det: d });
   }
   return next;
+}
+
+function msClock() {
+  const d = new Date();
+  const pad = (n: number, w = 2) => String(n).padStart(w, "0");
+  return `${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
 }
 
 function easeOut(k: number) {
