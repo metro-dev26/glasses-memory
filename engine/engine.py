@@ -148,6 +148,16 @@ class Engine:
             self.memory.snapshot(s, frame, ts, where, nearby)
             s.rested = s.rested or resting
 
+    def forget_all(self):
+        """Wipe the memory and the open tracks, so no half-identified track
+        carries an old object id into the new memory."""
+        self.memory.forget_all()
+        self.tracks.clear()
+
+    def warm_up(self):
+        """Load the text model now, so the first question is not slow."""
+        ask.embed_text(["warm up"])
+
     def forget_old_tracks(self):
         self.tracks = {tid: t for tid, t in self.tracks.items()
                        if self.frame_no - t.last_frame <= TRACK_TTL}

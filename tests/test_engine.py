@@ -94,3 +94,21 @@ def test_stillness_is_measured_against_the_camera_not_the_screen(tmp_path):
     things = [o.sightings[-1].rested for o in engine.memory.objects.values() if o.label == "thing"]
     assert rested == {"pen": False}
     assert things == [True] * 4
+
+
+def test_forget_all_drops_memory_and_open_tracks(leave_and_return):
+    run(leave_and_return, 12)
+    assert leave_and_return.memory.objects and leave_and_return.tracks
+    leave_and_return.forget_all()
+    assert leave_and_return.memory.objects == {}
+    assert leave_and_return.tracks == {}
+    run(leave_and_return, 6)
+    assert set(leave_and_return.memory.objects) == {1}
+
+
+def test_warm_up_loads_the_text_model(tmp_path, monkeypatch):
+    from engine import ask
+    calls = []
+    monkeypatch.setattr(ask, "embed_text", lambda texts: calls.append(texts))
+    Engine(tmp_path, detector=FakeDetector([]), embedder=FakeEmbedder({})).warm_up()
+    assert len(calls) == 1
