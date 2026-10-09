@@ -14,6 +14,9 @@ python -m server.app --store store/live                 # http://localhost:8000
 - Rounds have a name and a clock but no change detection yet (phase 3):
   `round_end` sends an empty report and `/keyframe/` answers 404.
 - The log prints frames per second and server latency every 30 s.
+- It answers only to localhost and `*.ts.net` host names (add others with
+  `--allow-host`), and websockets only from its own pages: otherwise a web
+  page open on the laptop could reach it through localhost.
 
 ## Phone camera over Tailscale (HTTPS)
 

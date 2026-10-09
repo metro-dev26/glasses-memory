@@ -29,6 +29,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from engine.ask import embed_text
 from engine.engine import Engine
@@ -38,7 +39,11 @@ DIST = ROOT / "dashboard" / "dist"
 SAVE_EVERY = 10.0        # seconds between memory saves, so a crash loses at most this much
 ACK_EVERY = 1.0          # seconds between camera_ack messages to the phone
 VIEW_UPDATE_EVERY = 1.0  # seconds; most often a memory message is sent only because the view changed
-REPORT_EVERY = 30.0      # seconds between latency lines in the server log
+REPORT_EVERY = 30.0
+# Host names the server answers to. A page whose own domain is re-pointed at
+# 127.0.0.1 (DNS rebinding) sends its own name as Host, and is refused here.
+# *.ts.net names are issued by Tailscale, so an outside site cannot use them.
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "::1", "*.ts.net"]      # seconds between latency lines in the server log
 
 
 class Live:
@@ -179,7 +184,8 @@ def same_origin(ws: WebSocket):
     """Browsers send any page's websocket to any host, so without this check a
     web page open on the laptop could watch the camera or forget everything
     through localhost. A browser always sends Origin; it must be this server.
-    Clients with no Origin are not browsers, so no other page can drive them."""
+    Clients with no Origin are not browsers, so no other page can drive them.
+    Host itself is checked by TrustedHostMiddleware (see ALLOWED_HOSTS)."""
     origin = ws.headers.get("origin")
     return origin is None or urlsplit(origin).netloc == ws.headers.get("host")
 
@@ -304,10 +310,13 @@ if DIST.exists():
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
+    ap.add_argument("--allow-host", action="append", default=[],
+                    help="another host name to answer to, e.g. a LAN IP")
     ap.add_argument("--store", default=STORE)
     # localhost only: `tailscale serve` is what makes it reachable, over HTTPS
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
     STORE = args.store
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS + args.allow_host)
     uvicorn.run(app, host=args.host, port=args.port)
