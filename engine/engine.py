@@ -36,9 +36,10 @@ class Track:
 
 
 class Engine:
-    def __init__(self, store="store"):
-        self.detector = Detector()
-        self.embedder = Embedder()
+    def __init__(self, store="store", detector=None, embedder=None):
+        """`detector` and `embedder` default to YOLOE and DINOv3; tests pass stand-ins."""
+        self.detector = detector or Detector()
+        self.embedder = embedder or Embedder()
         self.memory = Memory(store)
         self.tracks = {}
         self.frame_no = 0
