@@ -36,9 +36,10 @@ class Track:
 
 
 class Engine:
-    def __init__(self, store="store"):
-        self.detector = Detector()
-        self.embedder = Embedder()
+    def __init__(self, store="store", detector=None, embedder=None):
+        """`detector` and `embedder` default to YOLOE and DINOv3; tests pass stand-ins."""
+        self.detector = detector or Detector()
+        self.embedder = embedder or Embedder()
         self.memory = Memory(store)
         self.tracks = {}
         self.frame_no = 0
@@ -146,6 +147,16 @@ class Engine:
                 changed.add(obj.id)
             self.memory.snapshot(s, frame, ts, where, nearby)
             s.rested = s.rested or resting
+
+    def forget_all(self):
+        """Wipe the memory and the open tracks, so no half-identified track
+        carries an old object id into the new memory."""
+        self.memory.forget_all()
+        self.tracks.clear()
+
+    def warm_up(self):
+        """Load the text model now, so the first question is not slow."""
+        ask.embed_text(["warm up"])
 
     def forget_old_tracks(self):
         self.tracks = {tid: t for tid, t in self.tracks.items()
