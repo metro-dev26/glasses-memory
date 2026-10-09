@@ -34,7 +34,6 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from engine.ask import embed_text
 from engine.engine import Engine
 from engine.video import FPS, frames
 
@@ -206,9 +205,8 @@ async def lifespan(_app):
     global live
     live = Live(STORE)
     # The text model loads on the first question; loading it here keeps the
-    # first real question from freezing the video. (ask() skips the model when
-    # memory is empty, so the embedder is called directly.)
-    await asyncio.to_thread(embed_text, ["warm up"])
+    # first real question from freezing the video.
+    await asyncio.to_thread(live.engine.warm_up)
     tasks = [asyncio.create_task(f()) for f in (process_loop, save_loop, report_loop)]
     if VIDEO:
         tasks.append(asyncio.create_task(video_loop(VIDEO, LOOP)))
@@ -291,7 +289,7 @@ async def handle(ws, msg):
             await asyncio.to_thread(locked, live.engine.memory.rename, oid, name)
             await broadcast(memory_message())
     elif kind == "forget_all":
-        await asyncio.to_thread(locked, forget_all)
+        await asyncio.to_thread(locked, live.engine.forget_all)
         live.in_view = set()
         await broadcast(memory_message())
     elif kind == "round_start":
@@ -310,15 +308,6 @@ async def handle(ws, msg):
 def locked(fn, *args):
     with live.lock:
         return fn(*args)
-
-
-def forget_all():
-    live.engine.memory.forget_all()
-    # The engine's open tracks still point at the deleted object ids; dropping
-    # them makes every object in view be identified again from scratch.
-    # Proposed to Sujan as an Engine.forget_all(), so the server would not
-    # reach into engine internals.
-    live.engine.tracks.clear()
 
 
 # --- images and pages --------------------------------------------------------------
