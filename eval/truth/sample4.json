@@ -1,0 +1,8 @@
+{
+  "_note": "Written for version 1 (docs/HANDBOOK.md section 6), before version 2 ran. sample4 is a TEST video: never tune on it.",
+  "remote":         {"time": 38.0, "where": "on the bed"},
+  "hand gripper":   {"time": 47.1, "where": "on the side table"},
+  "yellow stapler": {"time": 59.8, "where": "on the table, out of the cupboard"},
+  "steel stapler":  {"time": 30.0, "where": "on the desk by the laptop"},
+  "sunglasses":     {"time": 24.0, "where": "on the notebook, moved left to right"}
+}

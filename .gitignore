@@ -9,6 +9,7 @@ refs/
 refs_crops/
 weights/
 memory/
+store/
 
 # local assistant notes, never committed
 CLAUDE.md
