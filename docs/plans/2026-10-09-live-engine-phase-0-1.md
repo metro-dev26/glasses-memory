@@ -1,5 +1,10 @@
 # Live engine, phases 0 and 1: implementation plan
 
+> **Superseded.** Phases 0 and 1 were built and measured in `engine/` and
+> `eval/` (see `eval/phase0_results.md`, `eval/phase1_results.md`), with a
+> different module layout from the one below. Kept for its test designs, which
+> the next plan reuses; do not execute it.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Measure whether YOLOE + ByteTrack + DINOv3 run live on an RTX 3050 (phase 0), and build the engine that turns a recorded video into an object memory with lasting identities, "where it was left" answers, and an evaluation harness (phase 1).

@@ -9,3 +9,7 @@ git+https://github.com/ultralytics/CLIP.git
 # SAM 2 (official). If this fails: pip install wheel setuptools, then
 #   SAM2_BUILD_CUDA=0 pip install --no-build-isolation git+https://github.com/facebookresearch/sam2.git
 git+https://github.com/facebookresearch/sam2.git
+# version 2 engine (engine/): DINOv3 via timm, text matching for questions
+timm>=1.0.20
+sentence-transformers
+ultralytics>=8.4
