@@ -30,8 +30,11 @@ class Embedder:
         # global_pool="token" returns the CLS token. timm's default averages the patch
         # tokens, which gives every crop a large shared component: on sample3 two
         # different objects then scored a median 0.64, against 0.28 with CLS.
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        # fp16 halves GPU time; CPUs run it slowly or not at all, so they stay fp32.
+        self.dtype = torch.float16 if self.device == "cuda" else torch.float32
         self.model = timm.create_model(model, pretrained=True, num_classes=0,
-                                       global_pool="token").cuda().half().eval()
+                                       global_pool="token").to(self.device, self.dtype).eval()
 
     @torch.inference_mode()
     def __call__(self, frame, boxes):
@@ -41,7 +44,7 @@ class Embedder:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         crops = [cv2.resize(crop(rgb, box), (SIZE, SIZE)) for box in boxes]
         batch = (np.stack(crops).astype(np.float32) / 255 - MEAN) / STD
-        x = torch.from_numpy(batch).permute(0, 3, 1, 2).cuda().half()
+        x = torch.from_numpy(batch).permute(0, 3, 1, 2).to(self.device, self.dtype)
         feats = torch.nn.functional.normalize(self.model(x).float(), dim=1)
         return feats.cpu().numpy()
 
