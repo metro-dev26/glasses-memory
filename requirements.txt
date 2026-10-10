@@ -12,7 +12,7 @@ git+https://github.com/facebookresearch/sam2.git
 # version 2 engine (engine/): DINOv3 via timm, text matching for questions
 timm>=1.0.20
 sentence-transformers
-ultralytics>=8.4
+ultralytics>=8.4.174    # quantize= replaces the deprecated half=
 # live server (server/) and the dashboard's mock server
 fastapi
 uvicorn[standard]

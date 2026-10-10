@@ -24,11 +24,12 @@ class RecordingModel:
         return self._record(kwargs)
 
 
-def test_half_precision_only_on_gpu():
+def test_fp16_only_on_gpu():
     detector = Detector.__new__(Detector)
     detector.model = RecordingModel()
     frame = np.zeros((64, 64, 3), np.uint8)
     detector(frame)
     detector.boxes(frame)
-    expected = torch.cuda.is_available()
-    assert [c["half"] for c in detector.model.calls] == [expected, expected]
+    expected = 16 if torch.cuda.is_available() else None
+    assert [c["quantize"] for c in detector.model.calls] == [expected, expected]
+    assert all("half" not in c for c in detector.model.calls)
