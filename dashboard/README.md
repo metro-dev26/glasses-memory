@@ -24,7 +24,9 @@ on a real phone it needs the Tailscale HTTPS address).
 While editing, `npm run dev` serves with hot reload on :5173 and forwards
 `/ws`, `/thumb`, `/snapshot` and `/keyframe` to the mock on :8000.
 
-The mock (`mock/mock_server.py`) needs `fastapi` and `uvicorn` in the repo venv.
+The mock (`mock/mock_server.py`) needs `fastapi`, `uvicorn` and `pillow`: activate
+the repo venv first (`source venv/bin/activate`, or `venv\Scripts\activate` on
+Windows), since `npm run mock` runs whichever `python` is on the PATH.
 
 ## Files
 

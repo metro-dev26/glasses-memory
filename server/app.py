@@ -21,6 +21,7 @@ import statistics
 import subprocess
 import threading
 import time
+import traceback
 from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -42,8 +43,7 @@ DIST = ROOT / "dashboard" / "dist"
 SAVE_EVERY = 10.0        # seconds between memory saves, so a crash loses at most this much
 ACK_EVERY = 1.0          # seconds between camera_ack messages to the phone
 VIEW_UPDATE_EVERY = 1.0  # seconds; most often a memory message is sent only because the view changed
-REPORT_EVERY = 30.0
-
+REPORT_EVERY = 30.0       # seconds between latency lines in the server log
 
 
 def tailscale_name():
@@ -62,7 +62,7 @@ def tailscale_name():
 # more can be added as GM_ALLOW_HOSTS=name1,name2.
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "::1", tailscale_name(),
                  *os.environ.get("GM_ALLOW_HOSTS", "").split(",")]
-ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]      # seconds between latency lines in the server log
+ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]
 
 
 class Live:
@@ -147,7 +147,13 @@ async def process_loop():
         await live.new_frame.wait()
         live.new_frame.clear()
         jpeg, arrived = live.latest
-        msg, changed, in_view = await asyncio.to_thread(run_frame, jpeg, arrived)
+        try:
+            msg, changed, in_view = await asyncio.to_thread(run_frame, jpeg, arrived)
+        except Exception:
+            # One bad frame must not stop the video: say so and take the next.
+            print("[live] frame failed:", flush=True)
+            traceback.print_exc()
+            continue
         if msg is None:
             continue
         await broadcast(msg)
@@ -210,10 +216,21 @@ async def lifespan(_app):
     tasks = [asyncio.create_task(f()) for f in (process_loop, save_loop, report_loop)]
     if VIDEO:
         tasks.append(asyncio.create_task(video_loop(VIDEO, LOOP)))
+    for t in tasks:
+        t.add_done_callback(report_crash)
     yield
     for t in tasks:
         t.cancel()
     save()
+
+
+def report_crash(task):
+    """A background task that raises dies silently; print why, so a frozen
+    dashboard has a reason in the server log."""
+    if not task.cancelled() and task.exception():
+        e = task.exception()
+        print(f"[live] {task.get_coro().__name__} stopped:", flush=True)
+        traceback.print_exception(type(e), e, e.__traceback__)
 
 
 app = FastAPI(lifespan=lifespan)
@@ -263,8 +280,21 @@ async def ws_dashboard(ws: WebSocket):
         await ws.send_text(json.dumps(live.round))
     try:
         while True:
-            await handle(ws, json.loads(await ws.receive_text()))
+            text = await ws.receive_text()
+            try:
+                msg = json.loads(text)
+                if not isinstance(msg, dict):
+                    raise ValueError("not a JSON object")
+                await handle(ws, msg)
+            except WebSocketDisconnect:
+                raise
+            except Exception:
+                # A bad message is dropped, not allowed to close the socket.
+                print(f"[live] dashboard message failed: {text[:200]!r}", flush=True)
+                traceback.print_exc()
     except WebSocketDisconnect:
+        pass
+    finally:
         live.dashboards.discard(ws)
 
 
@@ -274,7 +304,11 @@ async def handle(ws, msg):
         answer = await asyncio.to_thread(locked, live.engine.ask, msg.get("query", ""))
         await ws.send_text(json.dumps(answer))
     elif kind == "ask_photo":
-        image = cv2.imdecode(np.frombuffer(base64.b64decode(msg["jpeg_b64"]), np.uint8), cv2.IMREAD_COLOR)
+        try:
+            raw = base64.b64decode(msg.get("jpeg_b64") or "", validate=True)
+        except (ValueError, TypeError):
+            raw = b""
+        image = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR) if raw else None
         if image is None:
             await ws.send_text(json.dumps({"type": "answer", "query": "photo", "found": False,
                                            "object_id": None, "text": "That photo could not be read.",
