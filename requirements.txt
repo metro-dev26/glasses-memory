@@ -13,3 +13,6 @@ git+https://github.com/facebookresearch/sam2.git
 timm>=1.0.20
 sentence-transformers
 ultralytics>=8.4
+# live server (server/) and the dashboard's mock server
+fastapi
+uvicorn[standard]
