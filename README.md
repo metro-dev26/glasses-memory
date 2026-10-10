@@ -28,6 +28,36 @@ python run.py path/to/your_video.mp4
 
 Everything stays on your machine. The readable memory is in `memory/MEMORY.md`.
 
+## Run the live version on your own laptop
+The newer engine (`engine/`) and the live dashboard (`server/`, `dashboard/`). An NVIDIA GPU
+is optional: without one it runs on the CPU, at about 4 processed frames a second instead of 8+.
+Needs Python 3.11 and Node 20+.
+
+```bash
+git clone https://github.com/metro-dev26/glasses-memory && cd glasses-memory
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+# PyTorch first. NVIDIA GPU:
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# ...or CPU only:
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements-live.txt     # no SAM 2 / CLIP: those are only for run.py
+cd dashboard && npm install && npm run build && cd ..
+```
+
+The model weights (YOLOE, DINOv3, the text model) download themselves on first run.
+
+Put a video in `videos/` (personal footage is git-ignored), then either:
+
+```bash
+python -m engine.run videos/x.mp4 --store store/x --fresh   # prints what it remembers
+python -m server.app --video videos/x.mp4 --loop            # dashboard at http://localhost:8000
+python -m pytest -q                                         # 29 tests
+```
+
+Test videos with a written-down answer key are described in [docs/demo/](docs/demo/).
+More on the server (phone camera, Tailscale, latency): [server/README.md](server/README.md).
+
 ## How it works
 1. **Register** (`register.py`): drag one box per object on a close-up frame.
 2. **Track** (`track.py`): one SAM 2 pass follows every object together, at 10 fps.
