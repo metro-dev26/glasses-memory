@@ -13,7 +13,7 @@ ROOT = Path(__file__).parent.parent
 MODEL = ROOT / "models" / "yoloe-11s-seg-pf.pt"   # phase 0: 56 fps on the 3050
 IMGSZ = 640
 MIN_CONF = 0.25          # ultralytics' default; the dashboard dims anything < 0.4
-HALF = torch.cuda.is_available()   # fp16 is fast on GPU; on CPU it is ~40x slower than fp32
+QUANTIZE = 16 if torch.cuda.is_available() else None   # fp16 on GPU; on CPU fp16 is ~40x slower than fp32
 MAX_AREA = 0.4           # boxes covering more of the frame are walls, rooms, the bed you sit on
 IGNORE = {"person", "man", "woman", "boy", "girl", "child", "hand", "finger", "arm",
           "leg", "foot", "face", "head", "skin", "wall", "ceiling", "room", "floor",
@@ -35,7 +35,7 @@ class Detector:
         # agnostic_nms: YOLOE can put two boxes with two labels on one object
         # ("remote" and "phone"); suppressing overlaps across labels keeps one.
         result = self.model.track(frame, persist=True, tracker="bytetrack.yaml", imgsz=IMGSZ,
-                                  conf=MIN_CONF, agnostic_nms=True, half=HALF,
+                                  conf=MIN_CONF, agnostic_nms=True, quantize=QUANTIZE,
                                   verbose=False)[0]
         boxes = result.boxes
         if boxes.id is None:
@@ -58,7 +58,7 @@ class Detector:
         """Boxes of the objects in a single photo. Uses predict, not track, so a
         photo never disturbs the live tracks."""
         result = self.model.predict(image, imgsz=IMGSZ, conf=MIN_CONF, agnostic_nms=True,
-                                    half=HALF, verbose=False)[0]
+                                    quantize=QUANTIZE, verbose=False)[0]
         return [[round(v) for v in box] for box, cls in
                 zip(result.boxes.xyxy.tolist(), result.boxes.cls.int().tolist())
                 if result.names[cls] not in IGNORE]
