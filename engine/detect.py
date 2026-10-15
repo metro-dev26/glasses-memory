@@ -43,6 +43,8 @@ SURFACES = {"table", "desk", "bed", "shelf", "bookshelf", "cabinet", "cupboard",
 
 class Detector:
     def __init__(self, model=MODEL):
+        self.outlines = {}       # track id -> outline polygon of the last frame, for the embedder
+        self.photo_outlines = []
         self.model = YOLOE(str(model))
         self.model.set_classes(VOCAB, self.model.get_text_pe(VOCAB))
 
@@ -57,11 +59,15 @@ class Detector:
                                   conf=MIN_CONF, agnostic_nms=True, quantize=QUANTIZE,
                                   verbose=False)[0]
         boxes = result.boxes
+        self.outlines = {}
         if boxes.id is None:
             return [], []
+        outlines = result.masks.xy if getattr(result, "masks", None) is not None else [None] * len(boxes)
         objects, surfaces = [], []
-        for box, cls, conf, tid in zip(boxes.xyxy.tolist(), boxes.cls.int().tolist(),
-                                       boxes.conf.tolist(), boxes.id.int().tolist()):
+        for box, cls, conf, tid, outline in zip(boxes.xyxy.tolist(), boxes.cls.int().tolist(),
+                                                boxes.conf.tolist(), boxes.id.int().tolist(),
+                                                outlines):
+            self.outlines[tid] = outline
             label = result.names[cls]
             det = {"track_id": tid, "label": label, "conf": round(conf, 3),
                    "box": [round(v) for v in box]}
@@ -78,9 +84,12 @@ class Detector:
         photo never disturbs the live tracks."""
         result = self.model.predict(image, imgsz=IMGSZ, conf=MIN_CONF, agnostic_nms=True,
                                     quantize=QUANTIZE, verbose=False)[0]
-        return [[round(v) for v in box] for box, cls in
-                zip(result.boxes.xyxy.tolist(), result.boxes.cls.int().tolist())
+        outlines = result.masks.xy if getattr(result, "masks", None) is not None else [None] * len(result.boxes.xyxy)
+        kept = [([round(v) for v in box], outline) for box, cls, outline in
+                zip(result.boxes.xyxy.tolist(), result.boxes.cls.int().tolist(), outlines)
                 if result.names[cls] not in IGNORE]
+        self.photo_outlines = [outline for _, outline in kept]
+        return [box for box, _ in kept]
 
     def reset(self):
         """Forget all tracks, e.g. before a new video."""

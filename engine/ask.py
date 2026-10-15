@@ -52,9 +52,12 @@ def by_text(memory, query, now):
 def by_photo(memory, detector, embedder, image, now):
     """Match a photo of the object by its DINOv3 fingerprint."""
     boxes = detector.boxes(image)
-    box = max(boxes, key=lambda b: (b[2] - b[0]) * (b[3] - b[1])) if boxes else \
-        [0, 0, image.shape[1], image.shape[0]]
-    f = embedder(image, [box])[0]
+    outlines = getattr(detector, "photo_outlines", None) or [None] * len(boxes)
+    if boxes:
+        box, outline = max(zip(boxes, outlines), key=lambda b: (b[0][2] - b[0][0]) * (b[0][3] - b[0][1]))
+    else:
+        box, outline = [0, 0, image.shape[1], image.shape[0]], None
+    f = embedder(image, [box], [outline])[0]
     galleries = {oid: o.gallery for oid, o in memory.objects.items()}
     scored = sorted(((float((g @ f).max()), oid) for oid, g in galleries.items()), reverse=True)
     if not scored or scored[0][0] < identify.MATCH:

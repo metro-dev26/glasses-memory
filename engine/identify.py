@@ -37,16 +37,35 @@ class Embedder:
                                        global_pool="token").to(self.device, self.dtype).eval()
 
     @torch.inference_mode()
-    def __call__(self, frame, boxes):
-        """One unit-length fingerprint per box, shape (len(boxes), dim)."""
+    def __call__(self, frame, boxes, outlines=None):
+        """One unit-length fingerprint per box, shape (len(boxes), dim).
+        With an outline (the detector's segmentation polygon), everything outside
+        the object is greyed out first."""
         if not boxes:
             return np.zeros((0, self.model.num_features), dtype=np.float32)
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        crops = [cv2.resize(crop(rgb, box), (SIZE, SIZE)) for box in boxes]
+        outlines = outlines or [None] * len(boxes)
+        crops = [cv2.resize(crop(only_object(rgb, outline), box), (SIZE, SIZE))
+                 for box, outline in zip(boxes, outlines)]
         batch = (np.stack(crops).astype(np.float32) / 255 - MEAN) / STD
         x = torch.from_numpy(batch).permute(0, 3, 1, 2).to(self.device, self.dtype)
         feats = torch.nn.functional.normalize(self.model(x).float(), dim=1)
         return feats.cpu().numpy()
+
+
+def only_object(image, outline):
+    """The image with every pixel outside the outline set to the mean colour, which
+    the model sees as zero. On a live test, crops of objects being moved were
+    mostly hand and desk: two different held objects scored up to 0.78, more
+    than most pairs of views of the same object."""
+    if outline is None or len(outline) < 3:
+        return image
+    mask = np.zeros(image.shape[:2], np.uint8)
+    cv2.fillPoly(mask, [np.asarray(outline, np.int32)], 1)
+    out = np.empty_like(image)
+    out[:] = (MEAN * 255).astype(np.uint8)
+    out[mask == 1] = image[mask == 1]
+    return out
 
 
 def crop(image, box):
