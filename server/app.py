@@ -100,7 +100,7 @@ def fps():
 def memory_message():
     return {"type": "memory", "objects": [
         {"object_id": o.id, "name": o.name, "label": o.label, "last_seen": o.last_seen,
-         "where": o.where, "thumb": f"/thumb/{o.id}.jpg", "in_view": o.id in live.in_view}
+         "where": o.where, "thumb": f"/thumb/{o.id}.jpg?v={o.thumb_version}", "in_view": o.id in live.in_view}
         for o in live.engine.memory.objects.values()]}
 
 

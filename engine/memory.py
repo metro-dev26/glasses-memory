@@ -21,6 +21,8 @@ import cv2
 import numpy as np
 
 SIGHTING_GAP = 2.0       # seconds; a longer absence starts a new sighting
+THUMB_EDGE = 4           # pixels; a box this close to the frame edge is cut off by it
+THUMB_GROWTH = 1.3       # a new thumbnail must show the object this much larger
 
 
 @dataclass
@@ -43,6 +45,8 @@ class Object:
     label: str
     gallery: np.ndarray
     sightings: list = field(default_factory=list)
+    thumb_area: float = 0.0       # box area of the current thumbnail; 0 = cut off by the frame edge
+    thumb_version: int = 0        # bumped on every new thumbnail, so the dashboard reloads it
 
     @property
     def last_seen(self):
@@ -68,11 +72,27 @@ class Memory:
         obj = Object(self.next_object, label, label, gallery)
         self.objects[obj.id] = obj
         self.next_object += 1
-        x1, y1, x2, y2 = box
-        thumb = frame[y1:y2, x1:x2]
-        if thumb.size:
-            cv2.imwrite(str(self.thumb_path(obj.id)), resize_max(thumb, 160))
+        self.update_thumb(obj, frame, box)
         return obj
+
+    def update_thumb(self, obj, frame, box):
+        """Keep the clearest view as the thumbnail. The first view is usually the
+        object entering the frame, half cut off (on a live phone test most thumbnails
+        were thin slivers), so a later view replaces it when it is not touching the
+        frame edge and shows the object clearly larger. Returns True if replaced."""
+        h, w = frame.shape[:2]
+        x1, y1, x2, y2 = box
+        whole = x1 > THUMB_EDGE and y1 > THUMB_EDGE and x2 < w - THUMB_EDGE and y2 < h - THUMB_EDGE
+        area = (x2 - x1) * (y2 - y1) if whole else 0.0
+        if obj.thumb_version and area <= obj.thumb_area * THUMB_GROWTH:
+            return False
+        thumb = frame[max(0, y1):y2, max(0, x1):x2]
+        if not thumb.size:
+            return False
+        cv2.imwrite(str(self.thumb_path(obj.id)), resize_max(thumb, 160))
+        obj.thumb_area = area
+        obj.thumb_version += 1
+        return True
 
     def sighting(self, obj, ts, box):
         """The open sighting of `obj` at time `ts`, extended or newly started."""

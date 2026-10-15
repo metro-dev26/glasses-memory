@@ -36,6 +36,18 @@ def test_save_and_load_round_trip(tmp_path):
     assert loaded.create("mug", obj.gallery, FRAME, BOX).id == obj.id + 1
 
 
+def test_thumbnail_keeps_the_clearest_view(tmp_path):
+    memory = Memory(tmp_path)
+    edge = [0, 100, 40, 140]                      # entering at the left edge: cut off
+    obj = memory.create("remote", np.eye(4, dtype=np.float32)[:2], FRAME, edge)
+    assert obj.thumb_version == 1 and memory.thumb_path(obj.id).exists()
+    assert memory.update_thumb(obj, FRAME, [100, 100, 130, 130])      # whole, beats any cut-off view
+    assert not memory.update_thumb(obj, FRAME, [100, 100, 132, 132])  # barely larger: keep
+    assert not memory.update_thumb(obj, FRAME, [0, 0, 200, 200])      # larger but cut off: keep
+    assert memory.update_thumb(obj, FRAME, [100, 100, 160, 160])      # clearly larger and whole
+    assert obj.thumb_version == 3
+
+
 def test_forget_all(tmp_path):
     memory, _ = remember_remote(tmp_path)
     memory.save()

@@ -138,6 +138,8 @@ class Engine:
     def observe(self, obj, tr, frame, ts, o, objects, surfaces, changed):
         """Record the sighting, and snapshot the object when it is at rest."""
         s = self.memory.sighting(obj, ts, o["box"])
+        if self.memory.update_thumb(obj, frame, o["box"]):
+            changed.add(obj.id)
         resting = tr.still >= STILL_FRAMES
         due = (resting and ts - s.snapshot_at >= REST_SNAPSHOT_EVERY) or \
               (not s.rested and ts - s.snapshot_at >= MOVING_SNAPSHOT_EVERY)
