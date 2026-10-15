@@ -1,8 +1,14 @@
 """Detect every object in a frame and link boxes across frames into tracks.
 
-YOLOE in prompt-free mode finds objects from its built-in vocabulary (no
-registration), and ByteTrack gives each box a track id that stays the same
-while the object stays in view.
+YOLOE looks for the everyday things in VOCAB (text prompts, no registration),
+and ByteTrack gives each box a track id that stays the same while the object
+stays in view.
+
+Prompt-free mode (yoloe-*-pf.pt) was tried first: it picks names from ~4,500
+built-in words and, on a live phone test, called a helmet "alarm", a weighing
+scale "smartphone" and a router "phonebook". Asking by text only works through
+names, so a short list of things people actually lose names them far better.
+An object missing from VOCAB is not detected at all: add it here.
 """
 from pathlib import Path
 
@@ -10,7 +16,8 @@ import torch
 from ultralytics import YOLOE
 
 ROOT = Path(__file__).parent.parent
-MODEL = ROOT / "models" / "yoloe-11s-seg-pf.pt"   # phase 0: 56 fps on the 3050
+MODEL = ROOT / "models" / "yoloe-11l-seg.pt"   # large: ~23 ms a frame on the 3050, names
+                                               # the helmet and power bank that small missed
 IMGSZ = 640
 MIN_CONF = 0.25          # ultralytics' default; the dashboard dims anything < 0.4
 QUANTIZE = 16 if torch.cuda.is_available() else None   # fp16 on GPU; on CPU fp16 is ~40x slower than fp32
@@ -18,6 +25,15 @@ MAX_AREA = 0.4           # boxes covering more of the frame are walls, rooms, th
 IGNORE = {"person", "man", "woman", "boy", "girl", "child", "hand", "finger", "arm",
           "leg", "foot", "face", "head", "skin", "wall", "ceiling", "room", "floor",
           "bedroom", "living room", "office", "home", "house", "interior"}
+VOCAB = ["helmet", "weighing scale", "power bank", "router", "mug", "cup", "bottle",
+         "water bottle", "computer mouse", "keyboard", "laptop", "phone", "tablet",
+         "remote control", "headphones", "earphones", "charger", "cable", "keys", "wallet",
+         "watch", "glasses", "sunglasses", "book", "notebook", "pen", "pencil", "stapler",
+         "scissors", "tape", "box", "bag", "backpack", "shoe", "cap", "towel", "pillow", "lamp",
+         "fan", "speaker", "tripod", "perfume", "deodorant", "comb", "toothbrush", "plate",
+         "bowl", "spoon", "chair", "table", "desk", "bed", "shelf", "cabinet", "monitor",
+         "printer", "plant", "clock", "camera", "guitar", "dumbbell", "medicine", "jar",
+         "tin can", "toy", "cloth"]
 SURFACES = {"table", "desk", "bed", "shelf", "bookshelf", "cabinet", "cupboard", "counter",
             "countertop", "nightstand", "couch", "sofa", "chair", "stool", "drawer",
             "dresser", "bench", "tray", "box", "notebook", "book", "pillow", "carpet", "rug"}
@@ -26,6 +42,7 @@ SURFACES = {"table", "desk", "bed", "shelf", "bookshelf", "cabinet", "cupboard",
 class Detector:
     def __init__(self, model=MODEL):
         self.model = YOLOE(str(model))
+        self.model.set_classes(VOCAB, self.model.get_text_pe(VOCAB))
 
     def __call__(self, frame):
         """Return (objects, surfaces) for one BGR frame.
