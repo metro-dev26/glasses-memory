@@ -15,3 +15,6 @@ store/
 CLAUDE.md
 AGENTS.md
 .claude/
+
+# YOLOE downloads its text encoder into the working directory
+/mobileclip_*.ts
