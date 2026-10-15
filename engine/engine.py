@@ -22,9 +22,6 @@ STILL = 0.03             # motion below this fraction of the box diagonal per fr
 STILL_FRAMES = 3         # consecutive still frames before an object counts as put down
 REST_SNAPSHOT_EVERY = 0.5    # seconds between snapshots of a resting object
 MOVING_SNAPSHOT_EVERY = 1.0  # seconds between fallback snapshots before it ever rests
-RETURN_GAP = 1.5         # seconds: a track starting this soon after an object vanished...
-RETURN_DIST = 0.5        # ...within this many box diagonals of where it vanished...
-RETURN_MATCH = 0.50      # ...needs only this similarity to be that object again
 
 
 class Track:
@@ -33,8 +30,6 @@ class Track:
         self.age = 0
         self.fingerprints = []
         self.object_id = None
-        self.first_box = None     # where and when the track started, to spot a lost track coming back
-        self.first_ts = None
         self.center = None
         self.still = 0
         self.last_frame = 0
@@ -62,8 +57,6 @@ class Engine:
 
         for o in objects:
             tr = self.tracks.setdefault(o["track_id"], Track(o["label"]))
-            if tr.first_box is None:
-                tr.first_box, tr.first_ts = o["box"], ts
             tr.age += 1
             tr.last_frame = self.frame_no
         self.update_motion(objects)
@@ -115,10 +108,7 @@ class Engine:
             return t.age <= MIN_TRACK_AGE if t.object_id is None else t.age % VIEW_EVERY == 0
 
         todo = [o for o in objects if due(self.tracks[o["track_id"]])]
-        outlines = getattr(self.detector, "outlines", {})
-        fingerprints = self.embedder(frame, [o["box"] for o in todo],
-                                     [outlines.get(o["track_id"]) for o in todo])
-        for o, f in zip(todo, fingerprints):
+        for o, f in zip(todo, self.embedder(frame, [o["box"] for o in todo])):
             tr = self.tracks[o["track_id"]]
             if tr.object_id is None:
                 tr.fingerprints.append(f)
@@ -133,8 +123,6 @@ class Engine:
         galleries = {oid: obj.gallery for oid, obj in self.memory.objects.items()}
         oid, _ = identify.best_match(query, galleries, exclude=visible)
         if oid is None:
-            oid = self.just_vanished(tr, query, visible)
-        if oid is None:
             gallery = np.zeros((0, len(query)), dtype=np.float32)
             for f in tr.fingerprints:
                 gallery = identify.add_view(gallery, f)
@@ -146,27 +134,6 @@ class Engine:
         tr.object_id = det["object_id"] = oid
         tr.fingerprints = []
         visible.add(oid)
-
-    def just_vanished(self, tr, query, visible):
-        """The object that vanished a moment ago where this track started, if the
-        fingerprints agree even loosely. The tracker often loses an object for a
-        few frames (a blur, a hand passing); on sample5, 24 of 54 new objects
-        appeared within 1.5 s and half a box of an object that had just vanished,
-        with fingerprints too unsure (0.5-0.7) for best_match alone."""
-        c, d = center(tr.first_box), diagonal(tr.first_box)
-        best, best_sim = None, RETURN_MATCH
-        for oid, obj in self.memory.objects.items():
-            if oid in visible or not obj.sightings:
-                continue
-            s = obj.sightings[-1]
-            if not 0 <= tr.first_ts - s.end <= RETURN_GAP:
-                continue
-            if math.dist(center(s.box), c) > RETURN_DIST * max(d, diagonal(s.box)):
-                continue
-            sim = float((obj.gallery @ query).max())
-            if sim >= best_sim:
-                best, best_sim = oid, sim
-        return best
 
     def observe(self, obj, tr, frame, ts, o, objects, surfaces, changed):
         """Record the sighting, and snapshot the object when it is at rest."""
