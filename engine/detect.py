@@ -33,7 +33,9 @@ VOCAB = ["helmet", "weighing scale", "power bank", "router", "mug", "cup", "bott
          "fan", "speaker", "tripod", "perfume", "deodorant", "comb", "toothbrush", "plate",
          "bowl", "spoon", "chair", "table", "desk", "bed", "shelf", "cabinet", "monitor",
          "printer", "plant", "clock", "camera", "guitar", "dumbbell", "medicine", "jar",
-         "tin can", "toy", "cloth"]
+         "tin can", "toy", "cloth",
+         "person", "hand"]   # detected only so IGNORE can drop them: without these, a face
+                             # was forced into the nearest word ("cabinet") and stored
 SURFACES = {"table", "desk", "bed", "shelf", "bookshelf", "cabinet", "cupboard", "counter",
             "countertop", "nightstand", "couch", "sofa", "chair", "stool", "drawer",
             "dresser", "bench", "tray", "box", "notebook", "book", "pillow", "carpet", "rug"}
