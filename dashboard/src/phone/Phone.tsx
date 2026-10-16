@@ -14,11 +14,13 @@ export function Phone() {
   const [rate, setRate] = useState(0);
   const [serverFps, setServerFps] = useState<number | null>(null);
   const [awake, setAwake] = useState(false);
+  const [recording, setRecording] = useState(false);
 
   const { state, socket } = useSocket("/ws/camera", (data) => {
     if (typeof data !== "string") return;
     const msg = JSON.parse(data);
     if (msg.type === "camera_ack") setServerFps(msg.fps);
+    if (msg.type === "recording") setRecording(msg.on);
   });
 
   useEffect(() => {
@@ -104,6 +106,7 @@ export function Phone() {
         <span>sending {rate.toFixed(1)} fps</span>
         {serverFps !== null && <span>server {serverFps.toFixed(1)} fps</span>}
         {streaming && <span>{awake ? "screen stays on" : "screen may sleep"}</span>}
+        {recording && <span className="rec"><i />recording</span>}
       </div>
       {!secure && (
         <p className="phone-msg">The camera needs HTTPS. Open this page through the Tailscale https:// address.</p>
@@ -112,6 +115,10 @@ export function Phone() {
       <button className={`big ${streaming ? "stop" : "start"}`} disabled={!secure}
               onClick={() => setStreaming((s) => !s)}>
         {streaming ? "Stop" : "Start"}
+      </button>
+      <button className={`rec-btn ${recording ? "on" : ""}`} disabled={state !== "open"}
+              onClick={() => socket.current?.send(JSON.stringify({ type: recording ? "record_stop" : "record_start" }))}>
+        {recording ? "Stop recording" : "Record"}
       </button>
     </div>
   );

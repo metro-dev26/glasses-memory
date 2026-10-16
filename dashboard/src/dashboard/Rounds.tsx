@@ -5,7 +5,7 @@ import { elapsed } from "../time";
 export interface RoundState {
   running: { id: number; name: string; started: number } | null;
   changes: ChangeMsg[];                       // alerts of the running round, newest first
-  report: { id: number; changes: ChangeMsg[] } | null;
+  report: { id: number; changes: ChangeMsg[]; seen: number; first: boolean } | null;
 }
 
 const KINDS: ChangeKind[] = ["missing", "new", "moved"];
@@ -35,7 +35,7 @@ export function Rounds({ round, onStart, onEnd, conn }: {
 
       {r ? (
         <div className="round-controls">
-          <span className="dim">Walk the space. Changes since the last round appear here.</span>
+          <span className="dim">Walk the whole space, then end the round to see what changed since the last one.</span>
           <button className="danger-outline" onClick={onEnd} disabled={!conn}>End round</button>
         </div>
       ) : (
@@ -49,7 +49,7 @@ export function Rounds({ round, onStart, onEnd, conn }: {
         ? <ul className="alerts">{round.changes.map((c) => <Alert key={`${c.kind}-${c.object_id}`} c={c} />)}</ul>
         : <p className="empty">No changes yet.</p>)}
 
-      {!r && round.report && <Report id={round.report.id} changes={round.report.changes} />}
+      {!r && round.report && <Report {...round.report} />}
     </section>
   );
 }
@@ -62,15 +62,15 @@ function Alert({ c }: { c: ChangeMsg }) {
         <b>{c.name}</b>
       </div>
       <div className="pair">
-        <figure><img src={c.before} alt="Before" /><figcaption className="mono">before</figcaption></figure>
-        <figure><img src={c.after} alt="After" /><figcaption className="mono">now</figcaption></figure>
+        {c.before && <figure><img src={c.before} alt="Before" /><figcaption className="mono">before</figcaption></figure>}
+        {c.after && <figure><img src={c.after} alt="After" /><figcaption className="mono">now</figcaption></figure>}
       </div>
       <p>{c.text}</p>
     </li>
   );
 }
 
-function Report({ id, changes }: { id: number; changes: ChangeMsg[] }) {
+function Report({ id, changes, seen, first }: { id: number; changes: ChangeMsg[]; seen: number; first: boolean }) {
   return (
     <div className="report">
       <div className="report-head">
@@ -81,15 +81,11 @@ function Report({ id, changes }: { id: number; changes: ChangeMsg[] }) {
           ))}
         </span>
       </div>
-      {changes.length ? (
-        <ul className="report-list">
-          {changes.map((c) => (
-            <li key={`${c.kind}-${c.object_id}`} className={`kind-${c.kind}`}>
-              <span className="kind mono">{c.kind}</span><b>{c.name}</b><span className="dim">{c.text}</span>
-            </li>
-          ))}
-        </ul>
-      ) : <p className="empty">Nothing changed since the last round.</p>}
+      {first ? (
+        <p className="empty">First round: {seen} objects remembered. The next round is checked against this one.</p>
+      ) : changes.length ? (
+        <ul className="alerts">{changes.map((c) => <Alert key={`${c.kind}-${c.object_id}`} c={c} />)}</ul>
+      ) : <p className="empty">Nothing changed since the last round ({seen} objects checked).</p>}
     </div>
   );
 }

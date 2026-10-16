@@ -281,3 +281,6 @@ button.chip:hover { border-color: var(--accent); }
 }
 .big.start { background: var(--accent); color: #06232a; }
 .big.stop { background: var(--danger); color: #fff; }
+
+.rec-btn { height: 52px; border-radius: 26px; font-size: 16px; font-weight: 600; }
+.rec-btn.on { background: transparent; border-color: var(--danger); color: #ff8b8e; }

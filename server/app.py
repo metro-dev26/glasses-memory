@@ -9,6 +9,10 @@
     python -m server.app --video videos/x.mp4 --loop  # a recorded video instead of the phone
     python -m server.app --record videos/desk1        # also save every processed frame, to replay later
 
+Recording can also be switched on and off from the dashboard or the phone page:
+each recording is a folder of frames (replayable with --video FOLDER) plus an
+.mp4 of it beside the folder, made when the recording stops.
+
 Only the newest camera frame is ever processed. If the engine is busy when
 frames arrive, the older ones are dropped, so the delay stays at one frame
 instead of growing into a queue.
@@ -25,6 +29,7 @@ import time
 import traceback
 from collections import deque
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -37,6 +42,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from engine.engine import Engine
+from engine.rounds import Rounds, compare
 from engine.video import FPS, frames
 
 ROOT = Path(__file__).parent.parent
@@ -45,6 +51,7 @@ SAVE_EVERY = 10.0        # seconds between memory saves, so a crash loses at mos
 ACK_EVERY = 1.0          # seconds between camera_ack messages to the phone
 VIEW_UPDATE_EVERY = 1.0  # seconds; most often a memory message is sent only because the view changed
 REPORT_EVERY = 30.0       # seconds between latency lines in the server log
+SEND_TIMEOUT = 2.0        # seconds a socket may take to accept one message before it is dropped
 
 
 def tailscale_name():
@@ -81,14 +88,17 @@ class Live:
         self.in_view = set()
         self.processed = deque(maxlen=50)   # finish times, for frames per second
         self.latencies = deque(maxlen=600)  # ms from a frame's arrival to its message being ready
-        self.round = None
-        self.rounds_started = 0
+        self.rounds = Rounds(store)
+        self.round = None                # the "running" round message, for dashboards that join late
+        self.cameras = set()
+        self.recording = None            # folder the frames are being saved in, or None
 
 
 live: Live = None  # created at startup, after the store path is known
 STORE = "store/live"
 VIDEO = None             # a recorded video to play instead of the phone
-RECORD = None            # folder to save each processed frame in, named by its time
+RECORD = None            # folder to record into from the start (--record)
+VIDEOS = ROOT / "videos"  # where recordings started from the dashboard or phone go
 LOOP = False
 
 
@@ -106,13 +116,29 @@ def memory_message():
         for o in live.engine.memory.objects.values()]}
 
 
-async def broadcast(msg):
+async def broadcast(msg, to=None):
+    """Send to every socket at once. One that cannot take a message within
+    SEND_TIMEOUT (a stalled phone or tab) is dropped, and its page reconnects
+    by itself; waiting for it would freeze the video for everyone."""
     data = json.dumps(msg)
-    for ws in list(live.dashboards):
+    sockets = live.dashboards if to is None else to
+
+    async def send(ws):
         try:
-            await ws.send_text(data)
+            await asyncio.wait_for(ws.send_text(data), SEND_TIMEOUT)
         except Exception:
-            live.dashboards.discard(ws)
+            sockets.discard(ws)
+            try:
+                await ws.close()
+            except Exception:
+                pass
+
+    await asyncio.gather(*(send(ws) for ws in list(sockets)))
+
+
+def recording_message(video=None):
+    return {"type": "recording", "on": live.recording is not None,
+            "folder": str(live.recording) if live.recording else None, "video": video}
 
 
 def run_frame(jpeg, arrived):
@@ -122,12 +148,16 @@ def run_frame(jpeg, arrived):
     if frame is None:
         return None, set(), set()
     ts = time.time()
-    if RECORD:
+    folder = live.recording
+    if folder:
         # The JPEG exactly as the engine got it, so a replay sees the same frames.
-        (Path(RECORD) / f"{ts:.3f}.jpg").write_bytes(jpeg)
+        (folder / f"{ts:.3f}.jpg").write_bytes(jpeg)
     with live.lock:
         detections, changed = live.engine.process(frame, ts)
         stats = live.engine.stats(len(detections))
+        for d in detections:
+            if d["object_id"] is not None:
+                live.rounds.see(live.engine.memory.objects[d["object_id"]])
     live.processed.append(time.perf_counter())
     latency = (time.perf_counter() - arrived) * 1000
     live.latencies.append(latency)
@@ -212,10 +242,62 @@ def save():
         live.engine.memory.save()
 
 
+def make_mp4(folder):
+    """Turn a folder of recorded frames into folder.mp4, at the rate they
+    actually arrived. Returns the video path, or None if it failed."""
+    shots = sorted(folder.glob("*.jpg"))
+    if len(shots) < 2:
+        return None
+    first, last = float(shots[0].stem), float(shots[-1].stem)
+    rate = max(1.0, (len(shots) - 1) / max(last - first, 1e-3))
+    out = folder.with_suffix(".mp4")
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-framerate", f"{rate:.2f}",
+           "-pattern_type", "glob", "-i", str(folder / "*.jpg"),
+           # H.264 + yuv420p plays everywhere (phones, WhatsApp); it needs even sizes
+           "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+           str(out)]
+    try:
+        subprocess.run(cmd, check=True, timeout=600)
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"[live] could not make {out}: {e}", flush=True)
+        return None
+    return out
+
+
+def start_recording(folder=None):
+    folder = Path(folder) if folder else VIDEOS / datetime.now().strftime("rec-%Y%m%d-%H%M%S")
+    folder.mkdir(parents=True, exist_ok=True)
+    live.recording = folder
+    print(f"[live] recording into {folder}", flush=True)
+
+
+async def stop_recording():
+    folder, live.recording = live.recording, None
+    await broadcast(recording_message())
+    await broadcast(recording_message(), to=live.cameras)
+    video = await asyncio.to_thread(make_mp4, folder)
+    print(f"[live] recording saved: {folder} and {video}", flush=True)
+    done = recording_message(str(video.relative_to(ROOT)) if video and video.is_relative_to(ROOT) else
+                             str(video) if video else None)
+    await broadcast(done)
+    await broadcast(done, to=live.cameras)
+
+
+async def set_recording(on):
+    if on and not live.recording:
+        start_recording()
+        await broadcast(recording_message())
+        await broadcast(recording_message(), to=live.cameras)
+    elif not on and live.recording:
+        await stop_recording()
+
+
 @asynccontextmanager
 async def lifespan(_app):
     global live
     live = Live(STORE)
+    if RECORD:
+        start_recording(RECORD)
     # The text model loads on the first question; loading it here keeps the
     # first real question from freezing the video.
     await asyncio.to_thread(live.engine.warm_up)
@@ -228,6 +310,8 @@ async def lifespan(_app):
     for t in tasks:
         t.cancel()
     save()
+    if live.recording:
+        make_mp4(live.recording)
 
 
 def report_crash(task):
@@ -262,16 +346,32 @@ async def ws_camera(ws: WebSocket):
         await ws.close(code=1008)
         return
     await ws.accept()
+    live.cameras.add(ws)
+    await ws.send_text(json.dumps(recording_message()))
     last_ack = time.monotonic()
     try:
         while True:
-            live.latest = (await ws.receive_bytes(), time.perf_counter())
-            live.new_frame.set()
+            msg = await ws.receive()
+            if msg["type"] == "websocket.disconnect":
+                break
+            if msg.get("bytes"):
+                live.latest = (msg["bytes"], time.perf_counter())
+                live.new_frame.set()
+            elif msg.get("text"):
+                # The phone's record button; frames are binary, so text is a command.
+                try:
+                    cmd = json.loads(msg["text"])
+                    if isinstance(cmd, dict) and cmd.get("type") in ("record_start", "record_stop"):
+                        await set_recording(cmd["type"] == "record_start")
+                except ValueError:
+                    pass
             if time.monotonic() - last_ack >= ACK_EVERY:
                 last_ack = time.monotonic()
                 await ws.send_text(json.dumps({"type": "camera_ack", "fps": fps()}))
     except WebSocketDisconnect:
         pass
+    finally:
+        live.cameras.discard(ws)
 
 
 @app.websocket("/ws/dashboard")
@@ -282,6 +382,7 @@ async def ws_dashboard(ws: WebSocket):
     await ws.accept()
     live.dashboards.add(ws)
     await ws.send_text(json.dumps(memory_message()))
+    await ws.send_text(json.dumps(recording_message()))
     if live.round:
         await ws.send_text(json.dumps(live.round))
     try:
@@ -331,18 +432,36 @@ async def handle(ws, msg):
     elif kind == "forget_all":
         await asyncio.to_thread(locked, live.engine.forget_all)
         live.in_view = set()
+        with live.lock:
+            live.rounds = Rounds(STORE)     # the rounds were in the store that was just wiped
+        if live.round:
+            ended, live.round = live.round, None
+            await broadcast({"type": "round", "state": "ended", "round_id": ended["round_id"],
+                             "report": [], "seen": 0, "first": True})
         await broadcast(memory_message())
-    elif kind == "round_start":
-        # Rounds and change detection are phase 3: until then a round only has
-        # a name and a clock, and ends with an empty report.
-        live.rounds_started += 1
-        n = live.rounds_started
-        live.round = {"type": "round", "state": "running", "round_id": n,
-                      "name": msg.get("name") or f"Round {n}", "started": time.time()}
+    elif kind == "round_start" and not live.round:
+        with live.lock:
+            r = live.rounds.start(str(msg.get("name") or "").strip())
+        live.round = {"type": "round", "state": "running", "round_id": r.id,
+                      "name": r.name, "started": r.started}
         await broadcast(live.round)
     elif kind == "round_end" and live.round:
-        ended, live.round = live.round, None
-        await broadcast({"type": "round", "state": "ended", "round_id": ended["round_id"], "report": []})
+        live.round = None
+        await broadcast(await asyncio.to_thread(locked, end_round))
+    elif kind in ("record_start", "record_stop"):
+        await set_recording(kind == "record_start")
+
+
+def end_round():
+    """Finish the round and compare it with the one before (holds the lock)."""
+    r, previous = live.rounds.end()
+    report = compare(previous, r, live.engine.memory.objects, snapshot_url) if previous else []
+    return {"type": "round", "state": "ended", "round_id": r.id, "report": report,
+            "seen": len(r.seen), "first": previous is None}
+
+
+def snapshot_url(sighting_id):
+    return f"/snapshot/{sighting_id}.jpg" if live.engine.memory.snapshot_path(sighting_id).exists() else ""
 
 
 def locked(fn, *args):
@@ -395,7 +514,5 @@ if __name__ == "__main__":
     args = ap.parse_args()
     if args.video and not Path(args.video).exists():
         ap.error(f"no such video: {args.video}")
-    if args.record:
-        Path(args.record).mkdir(parents=True, exist_ok=True)
     STORE, VIDEO, LOOP, RECORD = args.store, args.video, args.loop, args.record
     uvicorn.run(app, host=args.host, port=args.port)
