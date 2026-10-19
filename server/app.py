@@ -27,6 +27,7 @@ import subprocess
 import threading
 import time
 import traceback
+import urllib.request
 from collections import deque
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -36,8 +37,8 @@ from urllib.parse import urlsplit
 import cv2
 import numpy as np
 import uvicorn
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -51,6 +52,8 @@ SAVE_EVERY = 10.0        # seconds between memory saves, so a crash loses at mos
 ACK_EVERY = 1.0          # seconds between camera_ack messages to the phone
 VIEW_UPDATE_EVERY = 1.0  # seconds; most often a memory message is sent only because the view changed
 REPORT_EVERY = 30.0       # seconds between latency lines in the server log
+MAX_SPEAK = 2000          # bytes of text /speak accepts; answers are one sentence
+VOICE_URL = os.environ.get("GM_VOICE_URL", "http://127.0.0.1:8010")  # server/voice.py
 SEND_TIMEOUT = 2.0        # seconds a socket may take to accept one message before it is dropped
 
 
@@ -330,7 +333,7 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
 # --- websockets ------------------------------------------------------------------
 
-def same_origin(ws: WebSocket):
+def same_origin(ws: WebSocket | Request):
     """Browsers send any page's websocket to any host, so without this check a
     web page open on the laptop could watch the camera or forget everything
     through localhost. A browser always sends Origin; it must be this server.
@@ -502,6 +505,30 @@ def snapshot(sighting_id: int):
 @app.get("/keyframe/{name}")
 def keyframe(name: str):
     raise HTTPException(404, "keyframes arrive with rounds, in phase 3")
+
+
+@app.post("/speak")
+async def speak(request: Request):
+    """An answer spoken by the Kokoro voice service (server/voice.py). 503 when
+    it is not running, and the dashboard then uses the browser's own speech."""
+    if not same_origin(request):
+        raise HTTPException(403)
+    text = b""
+    async for chunk in request.stream():
+        text += chunk
+        if len(text) > MAX_SPEAK:
+            raise HTTPException(413, "too long to speak")
+    try:
+        wav = await asyncio.to_thread(voice, text)
+    except OSError:
+        raise HTTPException(503, "voice service not running")
+    return Response(wav, media_type="audio/wav")
+
+
+def voice(text):
+    req = urllib.request.Request(f"{VOICE_URL}/speak", data=text, method="POST")
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return r.read()
 
 
 @app.get("/phone")

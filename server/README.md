@@ -30,6 +30,10 @@ python -m server.app --video videos/x.mp4 --loop       # --loop replays it; obje
   `--video FOLDER`. `--record FOLDER` starts recording from launch.
 - A page that stops reading (a stalled phone or tab) is dropped after 2 s and
   reconnects by itself, so it cannot freeze the video for everyone else.
+- **Voice:** answers are spoken in Kokoro's `af_heart` voice when
+  `python -m server.voice` is running (port 8010, in its own venv with
+  `kokoro` and `soundfile`: Kokoro needs transformers < 4.48, the engine a
+  newer one). Without it, the dashboard uses the browser's own speech.
 - The log prints frames per second and server latency every 30 s.
 - It answers only to localhost and this machine's own Tailscale name (add
   others with `GM_ALLOW_HOSTS=name1,name2`), and websockets only from its own

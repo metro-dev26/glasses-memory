@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { AnswerMsg } from "../protocol";
 import { clock, elapsed } from "../time";
 
@@ -18,6 +19,32 @@ const SpeechRecognitionImpl: (new () => Recognition) | undefined =
 
 const PHOTO_SIDE = 960; // same size the phone sends
 
+/** Say `text` in the server's Kokoro voice (server/voice.py), or with the
+ *  browser's own speech when that service is not running. Returns a stop function. */
+function speak(text: string) {
+  let stopped = false;
+  let audio: HTMLAudioElement | null = null;
+  fetch("/speak", { method: "POST", body: text })
+    .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
+    .then((wav) => {
+      if (stopped) return;
+      const url = URL.createObjectURL(wav);
+      audio = new Audio(url);
+      audio.onended = () => URL.revokeObjectURL(url);
+      void audio.play();
+    })
+    .catch(() => {
+      if (stopped || !("speechSynthesis" in window)) return;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    });
+  return () => {
+    stopped = true;
+    audio?.pause();
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+  };
+}
+
 export function AskBar({ answer, pending, onAsk, onAskPhoto }: {
   answer: AnswerMsg | null;
   pending: boolean;
@@ -30,11 +57,10 @@ export function AskBar({ answer, pending, onAsk, onAskPhoto }: {
   const recognition = useRef<Recognition | null>(null);
   const file = useRef<HTMLInputElement>(null);
 
-  // Speak each new answer, unless muted.
+  // Speak each new answer, unless muted; a newer answer cuts off the old one.
   useEffect(() => {
-    if (!answer || muted || !("speechSynthesis" in window)) return;
-    speechSynthesis.cancel();
-    speechSynthesis.speak(new SpeechSynthesisUtterance(answer.text));
+    if (!answer || muted) return;
+    return speak(answer.text);
   }, [answer, muted]);
 
   const submit = (q: string) => {
@@ -124,7 +150,7 @@ function AnswerCard({ a, onAsk }: { a: AnswerMsg; onAsk: (q: string) => void }) 
   return (
     <div className="answer">
       <div className="answer-body">
-        {a.snapshot && <Snapshot src={a.snapshot} box={a.box} />}
+        {a.snapshot && <Snapshot src={a.snapshot} />}
         <div className="answer-info">
           <p className="answer-text">{a.text}</p>
           {a.nearby.length > 0 && (
@@ -141,19 +167,34 @@ function AnswerCard({ a, onAsk }: { a: AnswerMsg; onAsk: (q: string) => void }) 
 }
 
 /** The snapshot with the object's box drawn in the snapshot's own pixel space. */
-function Snapshot({ src, box }: { src: string; box: AnswerMsg["box"] }) {
-  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+/** The saved snapshot, which already has the object's box drawn in (yellow) at
+ *  the moment it was taken. A box drawn over it here would be the object's
+ *  latest box, wrong if it moved after the snapshot. Click: full screen. */
+function Snapshot({ src }: { src: string }) {
+  const [full, setFull] = useState(false);
+
+  // Escape closes the full-screen view.
+  useEffect(() => {
+    if (!full) return;
+    const close = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [full]);
+
+  const picture = <img src={src} alt="Where it was last seen" />;
   return (
-    <div className="snapshot">
-      <img src={src} alt="Where it was last seen"
-           onLoad={(e) => setSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} />
-      {size && box && (
-        <svg viewBox={`0 0 ${size.w} ${size.h}`} preserveAspectRatio="none">
-          <rect x={box[0]} y={box[1]} width={box[2] - box[0]} height={box[3] - box[1]}
-                vectorEffect="non-scaling-stroke" />
-        </svg>
+    <>
+      <button className="snapshot" title="Click to see it full screen" onClick={() => setFull(true)}>
+        {picture}
+      </button>
+      {/* In <body>, so no panel's size or overflow can squeeze it. */}
+      {full && createPortal(
+        <div className="lightbox" onClick={() => setFull(false)}>
+          <div className="snapshot">{picture}</div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
 

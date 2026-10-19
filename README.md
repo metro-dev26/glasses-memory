@@ -6,7 +6,7 @@ Register an object once, follow it through the video, remember where it was put 
 
 Built jointly by Sujan Sekar and Abhinav Pallath.
 
-![Asking "where did i leave my remote?": the answer, where it was left, and the moment it was put down](docs/demo.gif)
+![The live dashboard: a walk around the room fills the memory, grouped by kind; tapping the remote's photo shows where it was last seen](docs/demo.gif)
 
 ## Try it yourself
 Needs an NVIDIA GPU (4 GB is enough) and Python 3.11.
