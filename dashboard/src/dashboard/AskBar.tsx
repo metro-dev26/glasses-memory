@@ -18,6 +18,17 @@ const SpeechRecognitionImpl: (new () => Recognition) | undefined =
 
 const PHOTO_SIDE = 960; // same size the phone sends
 
+// A deep, slow voice in the style of Optimus Prime. The browser's speech
+// engine can only change pitch (0-2) and rate, and use a voice installed on
+// the computer, so this is as close as it gets without an audio pipeline.
+const VOICE = { pitch: 0.2, rate: 0.85 };
+
+/** An English male voice if the computer has one, else the browser's default. */
+function deepVoice(): SpeechSynthesisVoice | null {
+  const english = speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
+  return english.find((v) => /\bmale\b/i.test(v.name)) ?? english[0] ?? null;
+}
+
 export function AskBar({ answer, pending, onAsk, onAskPhoto }: {
   answer: AnswerMsg | null;
   pending: boolean;
@@ -34,7 +45,11 @@ export function AskBar({ answer, pending, onAsk, onAskPhoto }: {
   useEffect(() => {
     if (!answer || muted || !("speechSynthesis" in window)) return;
     speechSynthesis.cancel();
-    speechSynthesis.speak(new SpeechSynthesisUtterance(answer.text));
+    const say = new SpeechSynthesisUtterance(answer.text);
+    say.voice = deepVoice();
+    say.pitch = VOICE.pitch;
+    say.rate = VOICE.rate;
+    speechSynthesis.speak(say);
   }, [answer, muted]);
 
   const submit = (q: string) => {
