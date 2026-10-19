@@ -121,6 +121,7 @@ function Tile({ o, onFind, onRename, fresh }: {
         </button>
       )}
       <span className="tile-sub mono">#{o.object_id} · {o.in_view ? "in view" : ago(o.last_seen)}</span>
+      {o.where && <span className="tile-where" title={o.where}>{o.where}</span>}
     </li>
   );
 }
