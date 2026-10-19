@@ -85,6 +85,7 @@ export type ServerMsg = FrameMsg | MemoryMsg | AnswerMsg | RoundMsg | ChangeMsg 
 export type ClientMsg =
   | { type: "ask"; query: string }
   | { type: "ask_photo"; jpeg_b64: string }
+  | { type: "ask_object"; object_id: number } // a photo picked in the memory panel
   | { type: "rename"; object_id: number; name: string }
   | { type: "round_start"; name: string }
   | { type: "round_end" }

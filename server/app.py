@@ -408,7 +408,10 @@ async def ws_dashboard(ws: WebSocket):
 async def handle(ws, msg):
     kind = msg.get("type")
     if kind == "ask":
-        answer = await asyncio.to_thread(locked, live.engine.ask, msg.get("query", ""))
+        answer = await asyncio.to_thread(asked, live.engine.ask, msg.get("query", ""))
+        await ws.send_text(json.dumps(answer))
+    elif kind == "ask_object":
+        answer = await asyncio.to_thread(asked, live.engine.ask_object, msg.get("object_id"))
         await ws.send_text(json.dumps(answer))
     elif kind == "ask_photo":
         try:
@@ -422,7 +425,7 @@ async def handle(ws, msg):
                                            "snapshot": None, "box": None, "nearby": [],
                                            "sightings": [], "candidates": []}))
             return
-        answer = await asyncio.to_thread(locked, live.engine.ask_photo, image)
+        answer = await asyncio.to_thread(asked, live.engine.ask_photo, image)
         await ws.send_text(json.dumps(answer))
     elif kind == "rename":
         oid, name = msg.get("object_id"), (msg.get("name") or "").strip()
@@ -466,6 +469,15 @@ def snapshot_url(sighting_id):
 
 def locked(fn, *args):
     with live.lock:
+        return fn(*args)
+
+
+def asked(fn, *args):
+    """Answer a question as of now. The engine's clock is the time of the last
+    frame, which stands still while the phone is not sending: "ago" would then
+    count from that frame instead of from the question."""
+    with live.lock:
+        live.engine.now = time.time()
         return fn(*args)
 
 
