@@ -18,15 +18,30 @@ const SpeechRecognitionImpl: (new () => Recognition) | undefined =
 
 const PHOTO_SIDE = 960; // same size the phone sends
 
-// A deep, slow voice in the style of Optimus Prime. The browser's speech
-// engine can only change pitch (0-2) and rate, and use a voice installed on
-// the computer, so this is as close as it gets without an audio pipeline.
-const VOICE = { pitch: 0.2, rate: 0.85 };
-
-/** An English male voice if the computer has one, else the browser's default. */
-function deepVoice(): SpeechSynthesisVoice | null {
-  const english = speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
-  return english.find((v) => /\bmale\b/i.test(v.name)) ?? english[0] ?? null;
+/** Say `text` in the server's Kokoro voice (server/voice.py), or with the
+ *  browser's own speech when that service is not running. Returns a stop function. */
+function speak(text: string) {
+  let stopped = false;
+  let audio: HTMLAudioElement | null = null;
+  fetch("/speak", { method: "POST", body: text })
+    .then((r) => (r.ok ? r.blob() : Promise.reject(r.status)))
+    .then((wav) => {
+      if (stopped) return;
+      const url = URL.createObjectURL(wav);
+      audio = new Audio(url);
+      audio.onended = () => URL.revokeObjectURL(url);
+      void audio.play();
+    })
+    .catch(() => {
+      if (stopped || !("speechSynthesis" in window)) return;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    });
+  return () => {
+    stopped = true;
+    audio?.pause();
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+  };
 }
 
 export function AskBar({ answer, pending, onAsk, onAskPhoto }: {
@@ -41,15 +56,10 @@ export function AskBar({ answer, pending, onAsk, onAskPhoto }: {
   const recognition = useRef<Recognition | null>(null);
   const file = useRef<HTMLInputElement>(null);
 
-  // Speak each new answer, unless muted.
+  // Speak each new answer, unless muted; a newer answer cuts off the old one.
   useEffect(() => {
-    if (!answer || muted || !("speechSynthesis" in window)) return;
-    speechSynthesis.cancel();
-    const say = new SpeechSynthesisUtterance(answer.text);
-    say.voice = deepVoice();
-    say.pitch = VOICE.pitch;
-    say.rate = VOICE.rate;
-    speechSynthesis.speak(say);
+    if (!answer || muted) return;
+    return speak(answer.text);
   }, [answer, muted]);
 
   const submit = (q: string) => {
