@@ -52,6 +52,7 @@ SAVE_EVERY = 10.0        # seconds between memory saves, so a crash loses at mos
 ACK_EVERY = 1.0          # seconds between camera_ack messages to the phone
 VIEW_UPDATE_EVERY = 1.0  # seconds; most often a memory message is sent only because the view changed
 REPORT_EVERY = 30.0       # seconds between latency lines in the server log
+MAX_SPEAK = 2000          # bytes of text /speak accepts; answers are one sentence
 VOICE_URL = os.environ.get("GM_VOICE_URL", "http://127.0.0.1:8010")  # server/voice.py
 SEND_TIMEOUT = 2.0        # seconds a socket may take to accept one message before it is dropped
 
@@ -332,7 +333,7 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
 # --- websockets ------------------------------------------------------------------
 
-def same_origin(ws: WebSocket):
+def same_origin(ws: WebSocket | Request):
     """Browsers send any page's websocket to any host, so without this check a
     web page open on the laptop could watch the camera or forget everything
     through localhost. A browser always sends Origin; it must be this server.
@@ -510,7 +511,13 @@ def keyframe(name: str):
 async def speak(request: Request):
     """An answer spoken by the Kokoro voice service (server/voice.py). 503 when
     it is not running, and the dashboard then uses the browser's own speech."""
-    text = (await request.body())[:2000]
+    if not same_origin(request):
+        raise HTTPException(403)
+    text = b""
+    async for chunk in request.stream():
+        text += chunk
+        if len(text) > MAX_SPEAK:
+            raise HTTPException(413, "too long to speak")
     try:
         wav = await asyncio.to_thread(voice, text)
     except OSError:
