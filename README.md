@@ -95,5 +95,6 @@ Fixes found on video 4 (design fixes, not threshold tuning):
 - ignore tracks before an object is registered (SAM 2 guesses before its prompt)
 
 New here? Read [docs/HANDBOOK.md](docs/HANDBOOK.md): every file, every design choice, and the rules.
+The whole project, both versions, in one place: [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md).
 
 Earlier experiments (YOLO-World, OWLv2, SAM 2 one object at a time) live in [`experiments/`](experiments/).
