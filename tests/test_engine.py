@@ -28,7 +28,7 @@ class FakeEmbedder:
     def __init__(self, by_x1):
         self.by_x1 = by_x1
 
-    def __call__(self, frame, boxes):
+    def __call__(self, frame, boxes, outlines=None):
         return np.array([self.by_x1[b[0]] for b in boxes], np.float32).reshape(len(boxes), DIM)
 
 

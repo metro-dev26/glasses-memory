@@ -7,6 +7,7 @@
 
     python -m server.app --store store/live          # http://localhost:8000
     python -m server.app --video videos/x.mp4 --loop  # a recorded video instead of the phone
+    python -m server.app --record videos/desk1        # also save every processed frame, to replay later
 
 Only the newest camera frame is ever processed. If the engine is busy when
 frames arrive, the older ones are dropped, so the delay stays at one frame
@@ -87,6 +88,7 @@ class Live:
 live: Live = None  # created at startup, after the store path is known
 STORE = "store/live"
 VIDEO = None             # a recorded video to play instead of the phone
+RECORD = None            # folder to save each processed frame in, named by its time
 LOOP = False
 
 
@@ -100,7 +102,7 @@ def fps():
 def memory_message():
     return {"type": "memory", "objects": [
         {"object_id": o.id, "name": o.name, "label": o.label, "last_seen": o.last_seen,
-         "where": o.where, "thumb": f"/thumb/{o.id}.jpg", "in_view": o.id in live.in_view}
+         "where": o.where, "thumb": f"/thumb/{o.id}.jpg?v={o.thumb_version}", "in_view": o.id in live.in_view}
         for o in live.engine.memory.objects.values()]}
 
 
@@ -119,8 +121,12 @@ def run_frame(jpeg, arrived):
     frame = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_COLOR)
     if frame is None:
         return None, set(), set()
+    ts = time.time()
+    if RECORD:
+        # The JPEG exactly as the engine got it, so a replay sees the same frames.
+        (Path(RECORD) / f"{ts:.3f}.jpg").write_bytes(jpeg)
     with live.lock:
-        detections, changed = live.engine.process(frame, time.time())
+        detections, changed = live.engine.process(frame, ts)
         stats = live.engine.stats(len(detections))
     live.processed.append(time.perf_counter())
     latency = (time.perf_counter() - arrived) * 1000
@@ -384,8 +390,12 @@ if __name__ == "__main__":
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--video", help="play this recorded video instead of waiting for the phone")
     ap.add_argument("--loop", action="store_true", help="replay the video when it ends")
+    ap.add_argument("--record", metavar="FOLDER",
+                    help="save every processed frame here; replay with --video FOLDER or engine.run FOLDER")
     args = ap.parse_args()
-    if args.video and not Path(args.video).is_file():
+    if args.video and not Path(args.video).exists():
         ap.error(f"no such video: {args.video}")
-    STORE, VIDEO, LOOP = args.store, args.video, args.loop
+    if args.record:
+        Path(args.record).mkdir(parents=True, exist_ok=True)
+    STORE, VIDEO, LOOP, RECORD = args.store, args.video, args.loop, args.record
     uvicorn.run(app, host=args.host, port=args.port)
