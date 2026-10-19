@@ -64,6 +64,9 @@ export function App() {
   const askPhoto = (jpeg_b64: string) => {
     if (post({ type: "ask_photo", jpeg_b64 })) setAsking(true);
   };
+  const askObject = (object_id: number) => {
+    if (post({ type: "ask_object", object_id })) setAsking(true);
+  };
 
   return (
     <div className="app">
@@ -88,7 +91,8 @@ export function App() {
       <main className="grid">
         <LiveView bus={bus} conn={state} />
         <aside className="side">
-          <MemoryPanel objects={objects} onRename={(object_id, name) => post({ type: "rename", object_id, name })} />
+          <MemoryPanel objects={objects} onFind={askObject}
+                       onRename={(object_id, name) => post({ type: "rename", object_id, name })} />
           <AskBar answer={answer} pending={asking} onAsk={ask} onAskPhoto={askPhoto} />
           <Rounds round={round} conn={open}
                   onStart={(name) => post({ type: "round_start", name })}
