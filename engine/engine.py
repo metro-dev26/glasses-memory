@@ -169,6 +169,9 @@ class Engine:
     def ask(self, query):
         return ask.by_text(self.memory, query, self.now)
 
+    def ask_object(self, object_id):
+        return ask.by_object(self.memory, object_id, self.now)
+
     def ask_photo(self, image):
         return ask.by_photo(self.memory, self.detector, self.embedder, image, self.now)
 

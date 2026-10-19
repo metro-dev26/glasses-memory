@@ -18,8 +18,18 @@ python -m server.app --video videos/x.mp4 --loop       # --loop replays it; obje
 - Only the newest camera frame is processed; older ones are dropped, so the
   delay stays at one frame instead of growing into a queue.
 - Memory is saved every 10 s and on shutdown (`Ctrl+C`).
-- Rounds have a name and a clock but no change detection yet (phase 3):
-  `round_end` sends an empty report and `/keyframe/` answers 404.
+- **Safety rounds:** Start round, walk the whole space, End round. Each round
+  is compared with the one before: **missing** (seen last round, not this one),
+  **new**, and **moved** (on a different surface, or a missing and a new object
+  with the same unique label: re-ID often turns a moved object into a new one).
+  Rounds are stored in the store's `memory.db` (`rounds`, `round_seen`), so a
+  round from yesterday is still there today. Logic: `engine/rounds.py`.
+- **Recording:** the Record button on the dashboard or the phone page saves
+  every processed frame to `videos/rec-<date>-<time>/` and, when stopped, an
+  H.264 `.mp4` beside it (needs `ffmpeg`). The folder replays exactly with
+  `--video FOLDER`. `--record FOLDER` starts recording from launch.
+- A page that stops reading (a stalled phone or tab) is dropped after 2 s and
+  reconnects by itself, so it cannot freeze the video for everyone else.
 - The log prints frames per second and server latency every 30 s.
 - It answers only to localhost and this machine's own Tailscale name (add
   others with `GM_ALLOW_HOSTS=name1,name2`), and websockets only from its own

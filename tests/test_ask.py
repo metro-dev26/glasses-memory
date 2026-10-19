@@ -54,6 +54,19 @@ def test_object_stored_twice_answers_with_the_latest_sighting(memory):
     assert ask.by_text(memory, "remote", now=35.0)["object_id"] == later.id
 
 
+def test_picked_object_answers_from_its_latest_look_alike(memory):
+    old = see(memory, "remote", 5.0, "on the desk")
+    newer = see(memory, "remote", 30.0, "on the bed")     # same gallery: stored twice
+    other = memory.create("mug", np.eye(4, dtype=np.float32)[1:2], FRAME, [0, 0, 10, 10])
+    memory.snapshot(memory.sighting(other, 50.0, [0, 0, 10, 10]), FRAME, 50.0, "on the shelf", [])
+    a = ask.by_object(memory, old.id, now=60.0)
+    assert a["found"] and a["object_id"] == newer.id and "on the bed" in a["text"]
+
+
+def test_picked_object_that_was_forgotten(memory):
+    assert not ask.by_object(memory, 99, now=0)["found"]
+
+
 @pytest.mark.parametrize("seconds, text", [(4, "just now"), (30, "30 seconds ago"),
                                            (300, "5 minutes ago"), (7200, "2 hours ago")])
 def test_ago(seconds, text):

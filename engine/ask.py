@@ -66,6 +66,24 @@ def by_photo(memory, detector, embedder, image, now):
     return answer("photo", memory.objects[scored[0][1]], now)
 
 
+def by_object(memory, object_id, now):
+    """Answer for an object picked by its photo on the dashboard. The same thing
+    may be stored more than once (a missed re-identification), so the answer
+    comes from whichever object that looks like it, the picked one included,
+    was seen last."""
+    picked = memory.objects.get(object_id)
+    if picked is None:
+        return not_found("picked object", "That object is no longer in memory.", [])
+    alike = [o for o in memory.objects.values()
+             if o is picked or looks_alike(o.gallery, picked.gallery)]
+    return answer(picked.name, max(alike, key=lambda o: o.last_seen), now)
+
+
+def looks_alike(a, b):
+    """True when any view of one gallery matches any view of the other."""
+    return len(a) > 0 and len(b) > 0 and float((a @ b.T).max()) >= identify.MATCH
+
+
 def answer(query, obj, now):
     """The protocol's answer message for a found object: the last sighting that
     has a snapshot is where it was left."""

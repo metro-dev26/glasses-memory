@@ -74,14 +74,21 @@ export interface ChangeMsg {
 
 export type RoundMsg =
   | { type: "round"; state: "running"; round_id: number; name: string; started: number }
-  | { type: "round"; state: "ended"; round_id: number; report: ChangeMsg[] };
+  | { type: "round"; state: "ended"; round_id: number; report: ChangeMsg[];
+      seen: number; first: boolean };   // first: nothing earlier to compare with
 
-export type ServerMsg = FrameMsg | MemoryMsg | AnswerMsg | RoundMsg | ChangeMsg;
+/** Whether frames are being saved; `video` is the .mp4 once a recording has stopped. */
+export interface RecordingMsg { type: "recording"; on: boolean; folder: string | null; video: string | null }
+
+export type ServerMsg = FrameMsg | MemoryMsg | AnswerMsg | RoundMsg | ChangeMsg | RecordingMsg;
 
 export type ClientMsg =
   | { type: "ask"; query: string }
   | { type: "ask_photo"; jpeg_b64: string }
+  | { type: "ask_object"; object_id: number } // a photo picked in the memory panel
   | { type: "rename"; object_id: number; name: string }
   | { type: "round_start"; name: string }
   | { type: "round_end" }
-  | { type: "forget_all" };
+  | { type: "forget_all" }
+  | { type: "record_start" }
+  | { type: "record_stop" };

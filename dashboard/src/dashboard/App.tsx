@@ -15,6 +15,7 @@ export function App() {
   const [answer, setAnswer] = useState<AnswerMsg | null>(null);
   const [asking, setAsking] = useState(false);
   const [round, setRound] = useState<RoundState>({ running: null, changes: [], report: null });
+  const [recording, setRecording] = useState<{ on: boolean; video: string | null }>({ on: false, video: null });
 
   const onMessage = useCallback((data: string | ArrayBuffer) => {
     if (typeof data !== "string") return;
@@ -34,7 +35,11 @@ export function App() {
         setRound((r) => msg.state === "running"
           ? { running: { id: msg.round_id, name: msg.name, started: msg.started },
               changes: r.running?.id === msg.round_id ? r.changes : [], report: null }
-          : { running: null, changes: [], report: { id: msg.round_id, changes: msg.report } });
+          : { running: null, changes: [],
+              report: { id: msg.round_id, changes: msg.report, seen: msg.seen, first: msg.first } });
+        break;
+      case "recording":
+        setRecording((r) => ({ on: msg.on, video: msg.video ?? (msg.on ? null : r.video) }));
         break;
       case "change":
         setRound((r) => r.running?.id === msg.round_id ? { ...r, changes: [msg, ...r.changes] } : r);
@@ -59,6 +64,9 @@ export function App() {
   const askPhoto = (jpeg_b64: string) => {
     if (post({ type: "ask_photo", jpeg_b64 })) setAsking(true);
   };
+  const askObject = (object_id: number) => {
+    if (post({ type: "ask_object", object_id })) setAsking(true);
+  };
 
   return (
     <div className="app">
@@ -72,13 +80,19 @@ export function App() {
           <span className={`status status-${state}`}>
             <i />{state === "open" ? "Connected" : state === "connecting" ? "Connecting…" : "Disconnected, retrying"}
           </span>
+          {recording.video && !recording.on && <span className="dim mono">saved {recording.video}</span>}
+          <button className={recording.on ? "danger-outline" : ""} disabled={!open}
+                  onClick={() => post({ type: recording.on ? "record_stop" : "record_start" })}>
+            {recording.on ? <span className="rec"><i />Stop recording</span> : "Record"}
+          </button>
           <Forget disabled={!open} onForget={() => { post({ type: "forget_all" }); setAnswer(null); }} />
         </div>
       </header>
       <main className="grid">
         <LiveView bus={bus} conn={state} />
         <aside className="side">
-          <MemoryPanel objects={objects} onRename={(object_id, name) => post({ type: "rename", object_id, name })} />
+          <MemoryPanel objects={objects} onFind={askObject}
+                       onRename={(object_id, name) => post({ type: "rename", object_id, name })} />
           <AskBar answer={answer} pending={asking} onAsk={ask} onAskPhoto={askPhoto} />
           <Rounds round={round} conn={open}
                   onStart={(name) => post({ type: "round_start", name })}
