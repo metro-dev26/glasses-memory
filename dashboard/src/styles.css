@@ -211,7 +211,7 @@ button.danger-outline { background: transparent; border-color: color-mix(in srgb
 /* The snapshot is the answer, so it gets the card's full width; a click opens it full screen. */
 .snapshot {
   position: relative; display: block; padding: 0; border: 0; background: none;
-  align-self: center; cursor: zoom-in;
+  flex: none; align-self: center; cursor: zoom-in;
 }
 .snapshot img { max-width: 100%; max-height: 220px; width: auto; height: auto; border-radius: 6px; }
 .lightbox {
@@ -272,7 +272,7 @@ button.chip:hover { border-color: var(--accent); }
 /* --- smaller laptop screens ------------------------------------------------ */
 @media (max-width: 1440px) {
   .grid { grid-template-columns: minmax(0, 60fr) minmax(340px, 40fr); gap: 10px; padding: 10px; }
-  .snapshot img { height: 104px; }
+  .answer .snapshot img { max-height: 160px; }   /* the card only; full screen stays full */
   .sightings { max-height: 40px; }
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { AnswerMsg } from "../protocol";
 import { clock, elapsed } from "../time";
 
@@ -186,10 +187,12 @@ function Snapshot({ src }: { src: string }) {
       <button className="snapshot" title="Click to see it full screen" onClick={() => setFull(true)}>
         {picture}
       </button>
-      {full && (
+      {/* In <body>, so no panel's size or overflow can squeeze it. */}
+      {full && createPortal(
         <div className="lightbox" onClick={() => setFull(false)}>
           <div className="snapshot">{picture}</div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
