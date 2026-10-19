@@ -149,7 +149,7 @@ function AnswerCard({ a, onAsk }: { a: AnswerMsg; onAsk: (q: string) => void }) 
   return (
     <div className="answer">
       <div className="answer-body">
-        {a.snapshot && <Snapshot src={a.snapshot} box={a.box} />}
+        {a.snapshot && <Snapshot src={a.snapshot} />}
         <div className="answer-info">
           <p className="answer-text">{a.text}</p>
           {a.nearby.length > 0 && (
@@ -166,19 +166,32 @@ function AnswerCard({ a, onAsk }: { a: AnswerMsg; onAsk: (q: string) => void }) 
 }
 
 /** The snapshot with the object's box drawn in the snapshot's own pixel space. */
-function Snapshot({ src, box }: { src: string; box: AnswerMsg["box"] }) {
-  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+/** The saved snapshot, which already has the object's box drawn in (yellow) at
+ *  the moment it was taken. A box drawn over it here would be the object's
+ *  latest box, wrong if it moved after the snapshot. Click: full screen. */
+function Snapshot({ src }: { src: string }) {
+  const [full, setFull] = useState(false);
+
+  // Escape closes the full-screen view.
+  useEffect(() => {
+    if (!full) return;
+    const close = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [full]);
+
+  const picture = <img src={src} alt="Where it was last seen" />;
   return (
-    <div className="snapshot">
-      <img src={src} alt="Where it was last seen"
-           onLoad={(e) => setSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} />
-      {size && box && (
-        <svg viewBox={`0 0 ${size.w} ${size.h}`} preserveAspectRatio="none">
-          <rect x={box[0]} y={box[1]} width={box[2] - box[0]} height={box[3] - box[1]}
-                vectorEffect="non-scaling-stroke" />
-        </svg>
+    <>
+      <button className="snapshot" title="Click to see it full screen" onClick={() => setFull(true)}>
+        {picture}
+      </button>
+      {full && (
+        <div className="lightbox" onClick={() => setFull(false)}>
+          <div className="snapshot">{picture}</div>
+        </div>
       )}
-    </div>
+    </>
   );
 }
 
